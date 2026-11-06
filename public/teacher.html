@@ -1433,7 +1433,10 @@
                     <div id="importPreviewStatus" style="font-size:0.9em; color:#666;"></div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button onclick="cancelImportPreview()" style="background:#eee; color:#333; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-size:0.95em;">Hủy</button>
-                        <button id="offlineExportBtn" onclick="exportOfflineQuiz()" style="background:#0f766e; color:#fff; border:none; padding:10px 22px; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.95em;">⬇ Tải file offline</button>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <button id="offlineExportBtn" onclick="exportOfflineQuiz()" style="background:#0f766e; color:#fff; border:none; padding:10px 22px; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.95em;">⬇ Tải gói offline (.zip)</button>
+                            <div style="font-size:0.8em; color:#666;">Giải nén, rồi tải CẢ 5 file lên cùng một thư mục riêng của đề (mỗi đề một thư mục).</div>
+                        </div>
                         <button id="importConfirmBtn" onclick="confirmImportPreview()" style="background:#2e7d32; color:#fff; border:none; padding:10px 22px; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.95em;">Xác nhận lưu</button>
                     </div>
                 </div>
@@ -1465,7 +1468,7 @@
                 <div style="border-top: 1px solid #dbe2ee; margin: 16px 0 12px;"></div>
 
                 <div style="font-weight: 600; color: #333; font-size: 0.9em; margin-bottom: 4px;">Xuất file offline</div>
-                <div style="font-size: 0.82em; color: #666; margin-bottom: 10px;">Tải 1 file HTML tự chạy để gửi học sinh — dùng đúng câu hỏi và điểm đang có, không cần nhập lại.</div>
+                <div style="font-size: 0.82em; color: #666; margin-bottom: 10px;">Tải gói ZIP gồm file HTML tự chạy, manifest, service worker và 2 icon — dùng đúng câu hỏi và điểm đang có, không cần nhập lại.</div>
                 <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
                     <label style="flex: 1 1 220px; font-size: 0.84em; color: #555;">Chế độ
                         <select id="bankOfflineMode" onchange="updateBankOfflineUI()" style="width: 100%; margin-top: 5px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 7px; font-size: 0.95em; background: #fff;">
@@ -1493,8 +1496,9 @@
                     </label>
                 </div>
                 <button id="bankOfflineExportBtn" onclick="exportBankOffline()" style="margin-top: 12px; background: #0f766e; color: #fff; border: none; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.95em;">
-                    ⬇ Tải file offline (<span id="bankOfflineCount">0</span> câu)
+                    ⬇ Tải gói offline (.zip) (<span id="bankOfflineCount">0</span> câu)
                 </button>
+                <div style="font-size: 0.8em; color: #666; margin-top: 6px;">Giải nén, rồi tải CẢ 5 file lên cùng một thư mục riêng của đề (mỗi đề một thư mục).</div>
             </details>
 
             <h2>Thêm câu hỏi mới</h2>
@@ -6030,7 +6034,7 @@ C. Công thức nước là H₂O. (Đ)</pre>
             }
         }
 
-        // Tải file HTML offline từ server — dùng chung cho xuất từ bản xem trước
+        // Tải gói ZIP offline từ server — dùng chung cho xuất từ bản xem trước
         // và xuất thẳng từ ngân hàng câu hỏi.
         async function fetchOfflineFile(payload) {
             const res = await fetch('/api/export/offline', {
@@ -6040,7 +6044,7 @@ C. Công thức nước là H₂O. (Đ)</pre>
             });
 
             if (!res.ok) {
-                let msg = 'Không tạo được file offline.';
+                let msg = 'Không tạo được gói offline.';
                 try {
                     const data = await res.json();
                     if (data.error) msg = data.error;
@@ -6052,7 +6056,7 @@ C. Công thức nước là H₂O. (Đ)</pre>
             }
 
             const blob = await res.blob();
-            const fileName = res.headers.get('X-Quiz-Filename') || 'bai-kiem-tra.html';
+            const fileName = res.headers.get('X-Quiz-Filename') || 'bai-kiem-tra.zip';
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

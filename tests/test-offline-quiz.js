@@ -94,8 +94,8 @@ check('la mot file HTML day du', () => {
     assert.ok(html.includes('id="quiz-data"'));
     assert.ok(html.includes('offlineQuiz:'));
 });
-check('chi co 2 the script (du lieu + ung dung)', () => {
-    assert.strictEqual((html.match(/<\/script>/g) || []).length, 2);
+check('chi co 3 the script (du lieu + ung dung + dang ky PWA)', () => {
+    assert.strictEqual((html.match(/<\/script>/g) || []).length, 3);
 });
 check('noi dung dap an duoc nhung', () => {
     assert.ok(html.includes('Thủ đô Việt Nam?'));
@@ -109,9 +109,9 @@ check('noi dung chua </script> khong pha duoc file', () => {
         questions: evilQuestions,
         settings: { mode: 'exam' }
     });
-    assert.strictEqual((evil.match(/<\/script>/g) || []).length, 2);
+    assert.strictEqual((evil.match(/<\/script>/g) || []).length, 3);
     assert.ok(!evil.includes('</script><script>alert(1)</script>'));
-    assert.ok(evil.includes('\\u003c/script>'), 'JSON chua duoc escape "<"');
+    assert.ok(evil.includes('\\u003c/script'), 'JSON chua duoc escape "<"');
 });
 check('cung noi dung -> cung id (on dinh)', () => {
     const a = offline.renderQuiz({ title: 'X', questions: questions, settings: { mode: 'exam' } });
@@ -207,6 +207,90 @@ check('tra loi ngan: o nhap ro rang tren dien thoai', () => {
     assert.ok(html.includes('enterkeyhint="done"'), 'o nhap thieu enterkeyhint');
     assert.ok(html.includes('class="short-hint"'), 'thieu goi y dinh dang dap an');
     assert.ok(html.includes('aria-label="Trả lời ngắn cho câu \' + (pos + 1) + \'"'), 'o nhap thieu nhan cho trinh doc man hinh');
+});
+
+console.log('goi PWA (template + manifest + service worker)');
+const pkgSettings = { mode: 'practice', attempts: 3, showAnswers: true };
+const pkg = offline.renderPackage({ title: 'Đề lịch sử', questions: questions, settings: pkgSettings });
+
+check('template HTML day du va khong con placeholder', () => {
+    assert.ok(pkg.html.includes('id="quiz-data"'), 'thieu quiz-data');
+    assert.ok(pkg.html.includes('</html>'), 'thieu the dong html');
+    assert.ok(!pkg.html.includes('{{'), 'con placeholder trong HTML');
+});
+
+check('tieu de chua <script> khong chen duoc the', () => {
+    const evil = offline.renderPackage({
+        title: 'Đề <script>alert(1)</script>',
+        questions: questions,
+        settings: { mode: 'exam' }
+    });
+    const title = (evil.html.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+    assert.ok(!title.includes('<script>'), 'tieu de chua the script');
+    assert.ok(!evil.html.includes('<title>Đề <script>'), 'tieu de chua duoc xu ly');
+});
+
+check('du lieu cau hoi chua </script> khong dong the som', () => {
+    const evilQuestions = JSON.parse(JSON.stringify(questions));
+    evilQuestions[0].question = 'Xem: </script><script>alert(1)</script>';
+    const evil = offline.renderPackage({
+        title: 'Đề an toàn',
+        questions: evilQuestions,
+        settings: { mode: 'exam' }
+    });
+    assert.strictEqual((evil.html.match(/<\/script>/g) || []).length, 3);
+    assert.ok(evil.html.includes('\\u003c/script'), 'JSON chua duoc escape "<"');
+    assert.ok(!evil.html.includes('</script><script>alert(1)</script>'), 'noi dung dong the som');
+});
+
+check('renderPackage tra du fileName/html/manifest/serviceWorker', () => {
+    assert.strictEqual(pkg.fileName, 'De-lich-su.html');
+    assert.strictEqual(typeof pkg.html, 'string');
+    assert.strictEqual(typeof pkg.manifest, 'string');
+    assert.strictEqual(typeof pkg.serviceWorker, 'string');
+    assert.ok(pkg.html.length > 1000);
+});
+
+check('manifest tro dung file va khong con placeholder', () => {
+    assert.ok(!pkg.manifest.includes('{{'), 'manifest con placeholder');
+    const m = JSON.parse(pkg.manifest);
+    assert.strictEqual(m.start_url, './' + pkg.fileName);
+    assert.strictEqual(m.id, './' + pkg.fileName);
+    assert.strictEqual(m.scope, './');
+    assert.strictEqual(m.name, 'Đề lịch sử');
+    assert.ok(m.short_name);
+});
+
+check('service worker dung cache/file cua de, khong hardcode de mau', () => {
+    assert.ok(pkg.serviceWorker.includes("var CACHE_PREFIX = 'quiz-De-lich-su-';"), 'sai CACHE_PREFIX');
+    assert.ok(/var CACHE_NAME = 'quiz-De-lich-su-[a-f0-9]{8}';/.test(pkg.serviceWorker), 'sai CACHE_NAME');
+    assert.ok(pkg.serviceWorker.includes("var APP_FILE = './De-lich-su.html';"), 'sai APP_FILE');
+    assert.ok(!pkg.serviceWorker.includes('de_toan_thpt_mau2.html'), 'con hardcode file mau');
+    assert.ok(pkg.serviceWorker.includes('key.indexOf(CACHE_PREFIX) === 0'), 'bo loc xoa cache sai');
+});
+
+check('hai de khac ten -> CACHE_PREFIX khac nhau', () => {
+    const a = offline.renderPackage({ title: 'Đề số 1', questions: questions, settings: pkgSettings });
+    const b = offline.renderPackage({ title: 'Đề số 2', questions: questions, settings: pkgSettings });
+    const prefix = s => (s.match(/var CACHE_PREFIX = '([^']+)';/) || [])[1];
+    assert.ok(prefix(a.serviceWorker) && prefix(b.serviceWorker));
+    assert.notStrictEqual(prefix(a.serviceWorker), prefix(b.serviceWorker));
+    assert.notStrictEqual(a.fileName, b.fileName);
+});
+
+check('fileName khong hop le -> throw loi ro rang', () => {
+    const bad = ['a/b.html', '../x.html', '', 'khong-co-duoi.html.exe', 'x'];
+    bad.forEach(function (name) {
+        assert.throws(function () {
+            offline.renderPackage({ title: 'Đề X', questions: questions, settings: pkgSettings, fileName: name });
+        }, /Tên file không hợp lệ/);
+    });
+});
+
+check('cung input -> cung output (deterministic)', () => {
+    const a = offline.renderPackage({ title: 'Đề lịch sử', questions: questions, settings: pkgSettings });
+    const b = offline.renderPackage({ title: 'Đề lịch sử', questions: questions, settings: pkgSettings });
+    assert.strictEqual(JSON.stringify(a), JSON.stringify(b));
 });
 
 console.log('');

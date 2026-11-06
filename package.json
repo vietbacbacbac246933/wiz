@@ -25,6 +25,7 @@
     "assets": [
       "public/**/*",
       "data/**/*",
+      "template/**/*",
       "Noidung/**/*"
     ],
     "targets": [

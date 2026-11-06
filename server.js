@@ -4223,16 +4223,33 @@ app.post('/api/export/offline', function (req, res) {
     };
 
     inlineAssetImages(prepared.saved).then(function (list) {
-        var html = offlineQuiz.renderQuiz({ title: title, questions: list, settings: settings });
-        var asciiName = slugFileName(title) + '.html';
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        var pkg = offlineQuiz.renderPackage({
+            title: title,
+            questions: list,
+            settings: settings,
+            fileName: slugFileName(title) + '.html'
+        });
+        var tpl = offlineQuiz.readTemplate();
+        var zip = new JSZip();
+        zip.file(pkg.fileName, pkg.html);
+        zip.file('manifest.webmanifest', pkg.manifest);
+        zip.file('sw.js', pkg.serviceWorker);
+        zip.file('icon-192.png', tpl.icon192);
+        zip.file('icon-512.png', tpl.icon512);
+        return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    }).then(function (buffer) {
+        var zipName = slugFileName(title) + '.zip';
+        res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition',
-            'attachment; filename="' + asciiName + '"; filename*=UTF-8\'\'' + encodeURIComponent(title.slice(0, 80) + '.html'));
-        res.setHeader('X-Quiz-Filename', asciiName);
-        res.send(html);
+            'attachment; filename="' + zipName + '"; filename*=UTF-8\'\'' + encodeURIComponent(title.slice(0, 80) + '.zip'));
+        res.setHeader('X-Quiz-Filename', zipName);
+        res.send(buffer);
     }).catch(function (err) {
-        console.error('Lỗi xuất file offline:', err);
-        res.status(500).json({ error: 'Không tạo được file offline. Vui lòng thử lại.' });
+        console.error('Lỗi xuất gói offline:', err);
+        if (err && err.code === 'BAD_INPUT') {
+            return res.status(400).json({ error: err.message });
+        }
+        res.status(500).json({ error: 'Không tạo được gói offline. Vui lòng thử lại.' });
     });
 });
 
