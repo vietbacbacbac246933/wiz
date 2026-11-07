@@ -1,6 +1,8 @@
 # Word → HTML Quiz
 
-Công cụ nội bộ tối giản: tải file Word (`.docx`) lên, xem lại câu hỏi, tải xuống **một file HTML duy nhất** chạy được khi không có mạng.
+Công cụ nội bộ tối giản: tải file Word (`.docx`) lên, xem lại câu hỏi, tải xuống **một gói ZIP** chứa file HTML chạy được khi không có mạng.
+
+Gói ZIP gồm: `<slug>.html`, `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png` — thả thẳng vào thư mục gốc của repo thư viện để importer xử lý.
 
 Không có tài khoản, không có cơ sở dữ liệu, không lưu file gốc hay ảnh trên đĩa. File Word và ảnh nhúng chỉ nằm trong RAM và tự hết hạn sau 30 phút.
 
@@ -17,7 +19,7 @@ Mở http://localhost:3456 (đổi cổng bằng biến môi trường `PORT`).
 
 1. **Tải file Word** — kéo thả hoặc chọn một file `.docx` (tối đa **15 MB**).
 2. **Xem lại câu hỏi** — kiểm tra câu hỏi, đáp án, điểm; sửa trực tiếp nếu cần. Câu chưa xác định được đáp án sẽ được đánh dấu để giáo viên tự kiểm tra.
-3. **Tải file HTML** — đặt tiêu đề, chọn chế độ làm bài rồi tải xuống. File mở được trên máy không có mạng: mọi CSS, JavaScript, công thức và ảnh đã nhúng sẵn.
+3. **Tải file ZIP** — đặt tiêu đề, chọn chế độ làm bài rồi tải xuống. File HTML bên trong mở được trên máy không có mạng: mọi CSS, JavaScript, công thức và ảnh đã nhúng sẵn; manifest và service worker đi kèm để dùng ngoại tuyến.
 
 ## Định dạng Word được hỗ trợ
 
