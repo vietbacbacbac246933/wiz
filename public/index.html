@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Word → HTML đề thi</title>
+<title>Word → ZIP đề thi</title>
 <link rel="stylesheet" href="/katex/katex.min.css">
 <style>
 :root{
@@ -67,8 +67,8 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 </head>
 <body>
 <div id="app">
-  <h1>Chuyển đề Word thành file HTML</h1>
-  <p class="muted">Nạp file <b>.docx</b>, kiểm tra câu hỏi, rồi tải về một file HTML tự chạy (không cần mạng).</p>
+  <h1>Chuyển đề Word thành gói ZIP</h1>
+  <p class="muted">Nạp file <b>.docx</b>, kiểm tra câu hỏi, rồi tải về gói ZIP chứa file HTML tự chạy (không cần mạng).</p>
 
   <section class="card">
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn hoặc kéo thả file Word">
@@ -109,7 +109,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
     <div class="toolbar">
       <button class="ghost" id="toggleAll" type="button">Bỏ chọn tất cả</button>
       <span class="spacer"></span>
-      <button id="export" type="button">Tải file HTML</button>
+      <button id="export" type="button">Tải file ZIP</button>
     </div>
 
     <div id="list"></div>
@@ -390,7 +390,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
     };
     var btn = this;
     btn.disabled = true;
-    setStatus('Đang tạo file HTML...', 'info');
+    setStatus('Đang tạo file ZIP...', 'info');
     fetch('/api/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -402,12 +402,12 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
         return res.blob().then(function (blob) {
           var a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
-          a.download = name ? name[1] : 'de-thi.html';
+          a.download = name ? name[1] : 'de-thi.zip';
           document.body.appendChild(a);
           a.click();
           a.remove();
           setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
-          setStatus('Đã tải file HTML. Mở trực tiếp bằng trình duyệt.', 'ok');
+          setStatus('Đã tải file ZIP. Bên trong là file HTML tự chạy kèm manifest, service worker và icon.', 'ok');
         });
       })
       .catch(function (err) { setStatus(err.message, 'err'); })

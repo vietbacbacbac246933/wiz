@@ -6,7 +6,7 @@
  *
  *   GET  /               giao dien (public/index.html)
  *   POST /api/extract    multipart/form-data, field "file" (.docx, <= 15 MB)
- *   POST /api/export     JSON { sessionId, title, questions, settings }
+ *   POST /api/export     JSON { sessionId, title, questions, settings } -> file .zip
  *   GET  /api/health     { ok: true }
  */
 
@@ -127,7 +127,7 @@ app.post('/api/extract', docxUpload.single('file'), function (req, res) {
     });
 });
 
-// Buoc 3: validate lai toan bo cau hoi roi tra ve MOT file HTML doc lap.
+// Buoc 3: validate lai toan bo cau hoi roi tra ve MOT file ZIP (HTML + PWA).
 app.post('/api/export', function (req, res) {
     var body = req.body || {};
     var session = importSessions.get(body.sessionId);
@@ -150,21 +150,18 @@ app.post('/api/export', function (req, res) {
 
     var title = String(body.title == null ? '' : body.title).replace(/[<>]/g, '').trim().slice(0, 100) || 'Bài kiểm tra';
 
-    try {
-        var html = offlineQuiz.renderHtml({
-            title: title,
-            questions: prepared.saved,
-            settings: body.settings
-        });
-        var fileName = offlineQuiz.slugifyTitle(title) + '.html';
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Content-Disposition',
-            'attachment; filename="' + fileName + '"; filename*=UTF-8\'\'' + encodeURIComponent(title + '.html'));
-        res.send(html);
-    } catch (err) {
-        console.error('Lỗi xuất file HTML:', err);
-        res.status(400).json({ error: err && err.message ? err.message : 'Không tạo được file HTML.' });
-    }
+    offlineQuiz.renderZip({
+        title: title,
+        questions: prepared.saved,
+        settings: body.settings
+    }).then(function (pkg) {
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename="' + pkg.fileName + '"');
+        res.send(pkg.buffer);
+    }).catch(function (err) {
+        console.error('Lỗi xuất file ZIP:', err);
+        res.status(400).json({ error: err && err.message ? err.message : 'Không tạo được file ZIP.' });
+    });
 });
 
 // Loi upload (multer) -> JSON gon thay vi trang HTML mac dinh.
