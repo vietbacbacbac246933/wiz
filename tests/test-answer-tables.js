@@ -248,6 +248,95 @@ async function buildHorizontalParts() {
     ]);
 }
 
+async function buildSideGroupTF() {
+    return docx([
+        new Paragraph('PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI'),
+        new Paragraph('Câu 1. Xét các phát biểu sau:'),
+        new Paragraph('a) Mệnh đề 1a.'), new Paragraph('b) Mệnh đề 1b.'),
+        new Paragraph('c) Mệnh đề 1c.'), new Paragraph('d) Mệnh đề 1d.'),
+        new Paragraph('Câu 2. Xét các phát biểu sau:'),
+        new Paragraph('a) Mệnh đề 2a.'), new Paragraph('b) Mệnh đề 2b.'),
+        new Paragraph('c) Mệnh đề 2c.'), new Paragraph('d) Mệnh đề 2d.'),
+        new Paragraph('Câu 3. Xét các phát biểu sau:'),
+        new Paragraph('a) Mệnh đề 3a.'), new Paragraph('b) Mệnh đề 3b.'),
+        new Paragraph('c) Mệnh đề 3c.'),
+        new Paragraph('Câu 4. Xét các phát biểu sau:'),
+        new Paragraph('a) Mệnh đề 4a.'), new Paragraph('b) Mệnh đề 4b.'),
+        new Paragraph('c) Mệnh đề 4c.'),
+        new Paragraph('ĐÁP ÁN TRẮC NGHIỆM ĐÚNG SAI'),
+        table([
+            ['Câu', 'Lệnh hỏi', 'Đáp án (Đ/S)', 'Câu 2'].map(function (t) { return { text: t }; }),
+            ['1', 'a', 'Đ', 'Đ'], ['1', 'b', 'Đ', 'Đ'], ['1', 'c', 'Đ', 'Đ'], ['1', 'd', 'S', 'S'],
+            ['3', 'a', 'Đ', ''], ['3', 'b', 'Đ', ''], ['3', 'c', 'S', '']
+        ].map(function (row) {
+            return row.map(function (t) { return typeof t === 'string' ? { text: t } : t; });
+        }))
+    ]);
+}
+
+async function buildMergedTFAndShort() {
+    return docx([
+        new Paragraph('PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI'),
+        new Paragraph('Câu 1. Xét các phát biểu sau:'),
+        new Paragraph('a) Mệnh đề 1a.'), new Paragraph('b) Mệnh đề 1b.'),
+        new Paragraph('c) Mệnh đề 1c.'), new Paragraph('d) Mệnh đề 1d.'),
+        new Paragraph('Câu 2. Xét các phát biểu sau:'),
+        new Paragraph('a) Mệnh đề 2a.'), new Paragraph('b) Mệnh đề 2b.'),
+        new Paragraph('c) Mệnh đề 2c.'), new Paragraph('d) Mệnh đề 2d.'),
+        new Paragraph('PHẦN III. TRẮC NGHIỆM TRẢ LỜI NGẮN'),
+        new Paragraph('Câu 1. Tính 2 + 0.'),
+        new Paragraph('Câu 2. Tính 2 + 2.'),
+        new Paragraph('ĐÁP ÁN TRẮC NGHIỆM ĐÚNG SAI'),
+        table([
+            ['Câu', 'Lệnh hỏi', 'Đáp án', 'Câu', 'Đáp án'].map(function (t) { return { text: t }; }),
+            [{ text: '1', vMerge: VerticalMergeType.RESTART }, { text: 'a' }, { text: 'Đ' },
+                { text: '2', vMerge: VerticalMergeType.RESTART }, { text: 'S' }],
+            [{ text: '', vMerge: VerticalMergeType.CONTINUE }, { text: 'b' }, { text: 'S' },
+                { text: '', vMerge: VerticalMergeType.CONTINUE }, { text: 'Đ' }],
+            [{ text: '', vMerge: VerticalMergeType.CONTINUE }, { text: 'c' }, { text: 'S' },
+                { text: '', vMerge: VerticalMergeType.CONTINUE }, { text: 'Đ' }],
+            [{ text: '', vMerge: VerticalMergeType.CONTINUE }, { text: 'd' }, { text: 'Đ' },
+                { text: '', vMerge: VerticalMergeType.CONTINUE }, { text: 'Đ' }]
+        ]),
+        new Paragraph('ĐÁP ÁN TRẮC NGHIỆM TRẢ LỜI NGẮN'),
+        table([
+            ['Câu', 'Đáp án', 'Câu', 'Đáp án'].map(function (t) { return { text: t }; }),
+            ['1', '2', '2', '4'].map(function (t) { return { text: t }; })
+        ])
+    ]);
+}
+
+async function buildMatrix() {
+    const children = [new Paragraph('PHẦN I. TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN')];
+    const letters = ['A', 'B', 'C', 'D'];
+    for (let n = 1; n <= 12; n++) {
+        children.push(new Paragraph('Câu ' + n + '. Câu hỏi số ' + n + '.'));
+        letters.forEach(function (l, i) { children.push(new Paragraph(l + '. Phương án ' + i)); });
+    }
+    children.push(new Paragraph('PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI'));
+    for (let n = 1; n <= 4; n++) {
+        children.push(new Paragraph('Câu ' + n + '. Xét các phát biểu sau:'));
+        ['a', 'b', 'c', 'd'].forEach(function (p) { children.push(new Paragraph(p + ') Mệnh đề ' + n + p + '.')); });
+    }
+    children.push(new Paragraph('PHẦN III. TRẮC NGHIỆM TRẢ LỜI NGẮN'));
+    for (let n = 1; n <= 6; n++) children.push(new Paragraph('Câu ' + n + '. Tính biểu thức ' + n + '.'));
+
+    const rows = [
+        [{ text: 'Câu hỏi', vMerge: VerticalMergeType.RESTART }, { text: 'Mã đề thi', span: 8 }],
+        [{ text: '', vMerge: VerticalMergeType.CONTINUE }].concat(['111', '112', '113', '114', '115', '116', '117', '118'].map(function (t) { return { text: t }; }))
+    ];
+    for (let n = 1; n <= 22; n++) {
+        let value = n <= 12 ? letters[(n - 1) % 4]
+            : n <= 16 ? ['ĐĐSS', 'SSĐĐ', 'ĐSĐS', 'SĐSĐ'][n - 13]
+            : String(n - 7);
+        rows.push([{ text: String(n) }, { text: value }, { text: 'B' }, { text: 'C' }, { text: 'D' },
+            { text: 'A' }, { text: 'B' }, { text: 'C' }, { text: 'D' }]);
+    }
+    children.push(new Paragraph('ĐÁP ÁN'));
+    children.push(table(rows));
+    return docx(children);
+}
+
 async function buildFullFlow() {
     return docx([
         new Paragraph('PHẦN I. TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN'),
@@ -419,6 +508,42 @@ async function buildFullFlow() {
         .every(function (n) { return !!zip.files[n]; }), JSON.stringify(Object.keys(zip.files)));
     check('là file HTML đầy đủ', /^<!doctype html>/i.test(exportText) && exportText.indexOf('</html>') > 0);
     check('có đủ 5 câu trong file', exportText.indexOf('"questions"') > 0 && exportText.indexOf('2 + 3') > 0);
+
+    console.log('\n=== 12. Bảng Đúng/Sai có cột "Câu 2" bên phải ===');
+    const p12 = await preview(await buildSideGroupTF(), 'cau-2.docx');
+    const q12 = (p12.json && p12.json.questions) || [];
+    check('có 4 câu đúng/sai', q12.length === 4 && q12.every(function (q) { return q.type === 'truefalse'; }), 'count=' + q12.length);
+    check('câu 1: Đ,Đ,Đ,S', q12[0] && JSON.stringify(q12[0].correctTF) === JSON.stringify([true, true, true, false]), q12[0] && JSON.stringify(q12[0].correctTF));
+    check('câu 2 lấy từ cột "Câu 2"', q12[1] && JSON.stringify(q12[1].correctTF) === JSON.stringify([true, true, true, false]), q12[1] && JSON.stringify(q12[1].correctTF));
+    check('câu 3: Đ,Đ,S', q12[2] && JSON.stringify(q12[2].correctTF) === JSON.stringify([true, true, false]), q12[2] && JSON.stringify(q12[2].correctTF));
+    check('câu 4 không bị bịa đáp án', q12[3] && q12[3].correctTF.every(function (v) { return v === null; }), q12[3] && JSON.stringify(q12[3].correctTF));
+    check('câu 4 vẫn cần kiểm tra', q12[3] && q12[3].needsReview === true, q12[3] && JSON.stringify(q12[3].reviewReasons));
+
+    console.log('\n=== 13. Ô câu gộp dọc + bảng trả lời ngắn riêng ===');
+    const p13 = await preview(await buildMergedTFAndShort(), 'gop-doc.docx');
+    const q13 = (p13.json && p13.json.questions) || [];
+    check('có 2 đúng/sai + 2 trả lời ngắn', q13.length === 4 &&
+        q13[0].type === 'truefalse' && q13[1].type === 'truefalse' &&
+        q13[2].type === 'shortanswer' && q13[3].type === 'shortanswer',
+        JSON.stringify(q13.map(function (q) { return q.type; })));
+    check('câu 1: Đ,S,S,Đ', q13[0] && JSON.stringify(q13[0].correctTF) === JSON.stringify([true, false, false, true]), q13[0] && JSON.stringify(q13[0].correctTF));
+    check('câu 2: S,Đ,Đ,Đ', q13[1] && JSON.stringify(q13[1].correctTF) === JSON.stringify([false, true, true, true]), q13[1] && JSON.stringify(q13[1].correctTF));
+    check('trả lời ngắn 1 = 2, 2 = 4', q13[2] && q13[2].correctAnswer === '2' && q13[3] && q13[3].correctAnswer === '4',
+        JSON.stringify([q13[2] && q13[2].correctAnswer, q13[3] && q13[3].correctAnswer]));
+    check('không câu nào cần kiểm tra', q13.every(function (q) { return q.needsReview === false; }), JSON.stringify(q13.map(function (q) { return q.reviewReasons; })));
+
+    console.log('\n=== 14. Bảng ma trận "Câu hỏi | Mã đề thi" (111..118) ===');
+    const p14 = await preview(await buildMatrix(), 'ma-tran.docx');
+    const q14 = (p14.json && p14.json.questions) || [];
+    const m14 = tableSummary(p14.json)[0];
+    check('có 22 câu', q14.length === 22, 'count=' + q14.length);
+    check('nhận bảng ma trận', m14 && m14.type === 'matrix', JSON.stringify(m14));
+    check('mã đề 111: câu 1 A, câu 2 B', q14[0] && q14[0].correct === 0 && q14[1] && q14[1].correct === 1,
+        JSON.stringify([q14[0] && q14[0].correct, q14[1] && q14[1].correct]));
+    check('mã đề 111: câu 13 Đ,Đ,S,S', q14[12] && JSON.stringify(q14[12].correctTF) === JSON.stringify([true, true, false, false]), q14[12] && JSON.stringify(q14[12].correctTF));
+    check('mã đề 111: câu 17 = 10', q14[16] && q14[16].correctAnswer === '10', q14[16] && q14[16].correctAnswer);
+    check('cảnh báo có nhiều mã đề và đã dùng 111', p14.json && p14.json.answerTables && p14.json.answerTables.warnings.join(' ').indexOf('8 mã đề') >= 0 && p14.json.answerTables.warnings.join(' ').indexOf('111') >= 0, JSON.stringify(p14.json && p14.json.answerTables && p14.json.answerTables.warnings));
+    check('không câu nào cần kiểm tra', q14.every(function (q) { return q.needsReview === false; }), JSON.stringify(q14.map(function (q) { return q.reviewReasons; })));
 
     console.log('\n----------------------------------------');
     console.log('Kết quả: ' + passed + ' PASS, ' + failed + ' FAIL');
