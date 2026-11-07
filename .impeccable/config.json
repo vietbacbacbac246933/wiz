@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-20T12:26:59.531Z",
         "reason": "False positive: line 409 is a regex assertion checking data-URI images in a test, not rendered markup (agent decision)"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "lib/question-parser.js"
+        ],
+        "createdAt": "2026-11-07T08:24:44.680Z",
+        "reason": "False positive: regex /<img\\\\b/i in analyzeImportCompleteness detects images, not rendered markup."
       }
     ]
   }

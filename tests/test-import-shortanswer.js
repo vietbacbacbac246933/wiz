@@ -75,8 +75,56 @@ async function exportHtml(body) {
     return { status: res.status, text: text };
 }
 
+async function buildNewForms() {
+    function u(text) {
+        return new Paragraph({ children: [new TextRun({ text: text, underline: {} })] });
+    }
+    const doc = new Document({
+        sections: [{
+            children: [
+                new Paragraph('PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI'),
+                new Paragraph('Câu 1. Xét các phát biểu sau:'),
+                u('a) Mệnh đề được gạch chân.'),
+                new Paragraph('b) Mệnh đề không gạch chân.'),
+                u('c) Mệnh đề gạch chân thứ hai.'),
+                new Paragraph('d) Mệnh đề còn lại.'),
+
+                new Paragraph('PHẦN III. TRẮC NGHIỆM TRẢ LỜI NGẮN'),
+                new Paragraph('Câu 1. Tính 2 + 3. Đáp án: 5'),
+                new Paragraph('Câu 2. Tính 4 + 5.'),
+                new Paragraph('9'),
+
+                new Paragraph('PHẦN IV. (1 điểm) Học sinh trả lời các câu sau.'),
+                new Paragraph('Câu 1. Tính 6 + 7.'),
+                new Paragraph('13'),
+                new Paragraph('Câu 2. Tính 3 + 4. Đáp án: 7')
+            ]
+        }]
+    });
+    return Packer.toBuffer(doc);
+}
+
 (async function main() {
     await ensureServer();
+
+    console.log('\n=== 0. Gạch chân Đúng/Sai + đáp án ngắn viết cùng dòng/ở dòng riêng ===');
+    const pNew = await preview(await buildNewForms());
+    const qNew = (pNew.json && pNew.json.questions) || [];
+    check('preview thành công', pNew.json && pNew.json.success === true, JSON.stringify(pNew.json).slice(0, 300));
+    check('gạch chân = Đúng, còn lại = Sai',
+        qNew[0] && JSON.stringify(qNew[0].correctTF) === JSON.stringify([true, false, true, false]),
+        qNew[0] && JSON.stringify(qNew[0].correctTF));
+    check('đáp án ngắn cùng dòng câu hỏi = 5', qNew[1] && qNew[1].correctAnswer === '5', qNew[1] && qNew[1].correctAnswer);
+    check('không còn chữ "Đáp án" trong câu hỏi', qNew[1] && !/Đáp án/i.test(qNew[1].question), qNew[1] && qNew[1].question);
+    check('đáp án ngắn ở dòng riêng = 9', qNew[2] && qNew[2].correctAnswer === '9', qNew[2] && qNew[2].correctAnswer);
+    check('câu không ghi loại phần + số ở dòng riêng -> trả lời ngắn',
+        qNew[3] && qNew[3].type === 'shortanswer' && qNew[3].correctAnswer === '13',
+        qNew[3] && JSON.stringify({ t: qNew[3].type, a: qNew[3].correctAnswer }));
+    check('câu không ghi loại phần + "Đáp án:" cùng dòng -> trả lời ngắn',
+        qNew[4] && qNew[4].type === 'shortanswer' && qNew[4].correctAnswer === '7',
+        qNew[4] && JSON.stringify({ t: qNew[4].type, a: qNew[4].correctAnswer }));
+    check('các câu mới không cần kiểm tra', qNew.every(function (q) { return q.needsReview === false; }),
+        JSON.stringify(qNew.map(function (q) { return q.reviewReasons; })));
 
     console.log('\n=== 1. Preview: nhận diện đúng Phần 3 ===');
     const docx = await buildDocx();
