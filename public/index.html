@@ -92,6 +92,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       <span><span class="chip warn" id="reviewCount">0 cần kiểm tra</span></span>
       <span class="muted" id="sourceName"></span>
     </div>
+    <div id="importWarnings" class="status info" role="status"></div>
 
     <h2 style="font-size:1.05rem;margin:18px 0 6px">Thông tin đề</h2>
     <div class="row">
@@ -375,6 +376,10 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
         $('reviewCount').textContent = json.needsReview + ' cần kiểm tra';
         $('reviewCount').className = 'chip ' + (json.needsReview ? 'warn' : 'ok');
         $('sourceName').textContent = json.source && json.source.docx ? json.source.docx : '';
+        var tableWarnings = (json.answerTables && json.answerTables.warnings) || [];
+        var warnEl = $('importWarnings');
+        warnEl.textContent = tableWarnings.join(' ');
+        warnEl.className = 'status info' + (tableWarnings.length ? ' show' : '');
         renderList();
         setStatus('Trích xuất xong ' + json.count + ' câu. Kiểm tra và sửa nếu cần.', 'ok');
         $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
