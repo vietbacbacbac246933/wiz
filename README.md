@@ -23,8 +23,10 @@ Mở http://localhost:3456 (đổi cổng bằng biến môi trường `PORT`).
 
 ## Định dạng Word được hỗ trợ
 
+> Quy tắc soạn chi tiết để hệ thống đọc đúng: [`docs/quy-tac-soan-de-word.md`](docs/quy-tac-soan-de-word.md).
+
 - Câu hỏi bắt đầu bằng `Câu 1.`, `Câu 2:` (hỗ trợ cả `Cau 1.` không dấu).
-- Phương án `A.`, `B.`, `C.`, `D.`; đáp án đúng đánh dấu bằng `*`, gạch chân hoặc in đậm.
+- Phương án `A.`, `B.`, `C.`, `D.`; đáp án đúng đánh dấu bằng `*`, `(đúng)` hoặc gạch chân (in đậm **không** được tính là đáp án).
 - Câu đúng/sai với các ý `a)`, `b)`, `c)`, `d)` và đáp án `Đ`/`S`; gạch chân một ý nghĩa là ý đó **đúng**, các ý còn lại là **sai**.
 - Câu trả lời ngắn: đáp án là một số hoặc chuỗi ngắn, có thể ghi cùng dòng (`Đáp án: 5`) hoặc ở dòng riêng ngay sau câu hỏi (`5`).
 - Bảng đáp án đặt ở cuối đề (`ĐÁP ÁN PHẦN I`, ...) theo hàng ngang, hàng dọc, cặp cột `Câu | Đáp án | Câu | Đáp án`, cột phụ `Câu 2`, ô câu gộp dọc và bảng ma trận `Câu hỏi | Mã đề thi`. Bảng ma trận nhiều mã đề chỉ đọc mã đầu tiên và cảnh báo để giáo viên kiểm tra.
