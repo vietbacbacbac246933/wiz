@@ -87,6 +87,8 @@ async function exportZip(payload) {
     const home = await fetch(BASE + '/');
     const homeBody = await home.text();
     check('/ tra ve trang giao dien', home.ok && /api\/extract/.test(homeBody), 'status=' + home.status);
+    check('giao dien co bo loc cau hoi', /data-filter="review"/.test(homeBody) && /data-filter="answered"/.test(homeBody), 'thieu bo loc');
+    check('giao dien tu trich xuat sau khi chon file', /function readFile[\s\S]*?runExtract\(\)/.test(homeBody), 'readFile chua goi runExtract');
     const health = await (await fetch(BASE + '/api/health')).json();
     check('/api/health -> ok', health.ok === true);
 

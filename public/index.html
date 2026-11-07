@@ -61,6 +61,9 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 .preview img{max-width:100%;height:auto}
 .preview .math{display:block;margin:4px 0}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pill{border:1px solid var(--line);background:#fff;color:var(--ink);padding:6px 12px;border-radius:999px;font-size:.85rem;font-weight:600;cursor:pointer}
+.pill[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
 .spacer{flex:1}
 @media(max-width:560px){#app{padding:16px 10px 80px}.card{padding:14px}}
 </style>
@@ -77,7 +80,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       <input type="file" id="file" accept=".docx" hidden>
     </div>
     <div class="actions">
-      <button id="extract" disabled>Trích xuất đề</button>
+      <button id="extract" disabled>Trích xuất lại</button>
       <span id="fileInfo" class="muted"></span>
     </div>
     <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -112,6 +115,12 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       <button id="export" type="button">Tải file ZIP</button>
     </div>
 
+    <div class="filters" role="group" aria-label="Lọc câu hỏi">
+      <button class="pill" type="button" data-filter="all" aria-pressed="true">Tất cả (<span data-count="all">0</span>)</button>
+      <button class="pill" type="button" data-filter="answered" aria-pressed="false">Có đáp án (<span data-count="answered">0</span>)</button>
+      <button class="pill" type="button" data-filter="review" aria-pressed="false">Cần kiểm tra (<span data-count="review">0</span>)</button>
+    </div>
+
     <div id="list"></div>
   </section>
 </div>
@@ -122,7 +131,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 (function () {
   'use strict';
 
-  var state = { file: null, data: null, questions: [], pool: {}, reverse: {} };
+  var state = { file: null, data: null, questions: [], pool: {}, reverse: {}, filter: 'all' };
   var $ = function (id) { return document.getElementById(id); };
   var list = $('list');
 
@@ -176,8 +185,12 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       : type === 'shortanswer' ? 'Trả lời ngắn' : 'Một đáp án';
   }
 
+  function isReview(q) {
+    return !!(q.needsReview || q.correct === null || q.correct === -1);
+  }
+
   function badge(q) {
-    if (q.needsReview || q.correct === null) {
+    if (isReview(q)) {
       return '<span class="chip warn">Cần kiểm tra</span>';
     }
     return '';
@@ -229,7 +242,25 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
   }
 
   function renderList() {
-    list.innerHTML = state.questions.map(questionCard).join('');
+    var items = state.questions.map(function (q, i) { return { q: q, i: i }; });
+    var counts = { all: items.length, answered: 0, review: 0 };
+    items.forEach(function (it) {
+      if (isReview(it.q)) counts.review++;
+      else counts.answered++;
+    });
+    Object.keys(counts).forEach(function (key) {
+      var el = document.querySelector('[data-count="' + key + '"]');
+      if (el) el.textContent = counts[key];
+    });
+    var shown = items.filter(function (it) {
+      if (state.filter === 'answered') return !isReview(it.q);
+      if (state.filter === 'review') return isReview(it.q);
+      return true;
+    });
+    list.innerHTML = shown.length
+      ? shown.map(function (it) { return questionCard(it.q, it.i); }).join('')
+      : '<p class="muted" style="margin-top:16px">' +
+        (state.filter === 'review' ? 'Không có câu nào cần kiểm tra.' : 'Không có câu nào có đáp án.') + '</p>';
     list.querySelectorAll('.preview').forEach(mathPreview);
   }
 
@@ -300,7 +331,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
     state.file = file;
     $('fileInfo').textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(2) + ' MB)';
     $('extract').disabled = false;
-    setStatus('Đã chọn file. Bấm "Trích xuất đề".', 'info');
+    runExtract();
   }
 
   $('drop').addEventListener('click', function () { $('file').click(); });
@@ -319,9 +350,9 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
   });
   $('file').addEventListener('change', function () { readFile(this.files[0]); });
 
-  $('extract').addEventListener('click', function () {
+  function runExtract() {
     if (!state.file) return;
-    var btn = this;
+    var btn = $('extract');
     var fd = new FormData();
     fd.append('file', state.file);
     btn.disabled = true;
@@ -350,6 +381,18 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       })
       .catch(function (err) { setStatus(err.message, 'err'); })
       .then(function () { btn.disabled = false; });
+  }
+
+  $('extract').addEventListener('click', runExtract);
+
+  document.querySelectorAll('[data-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.filter = btn.dataset.filter;
+      document.querySelectorAll('[data-filter]').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+      renderList();
+    });
   });
 
   $('mode').addEventListener('change', function () {

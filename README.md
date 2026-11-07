@@ -17,17 +17,17 @@ Mở http://localhost:3456 (đổi cổng bằng biến môi trường `PORT`).
 
 ## Ba bước sử dụng
 
-1. **Tải file Word** — kéo thả hoặc chọn một file `.docx` (tối đa **15 MB**).
-2. **Xem lại câu hỏi** — kiểm tra câu hỏi, đáp án, điểm; sửa trực tiếp nếu cần. Câu chưa xác định được đáp án sẽ được đánh dấu để giáo viên tự kiểm tra.
+1. **Tải file Word** — kéo thả hoặc chọn một file `.docx` (tối đa **15 MB**); hệ thống tự trích xuất ngay.
+2. **Xem lại câu hỏi** — lọc theo *Tất cả / Có đáp án / Cần kiểm tra*, kiểm tra câu hỏi, đáp án, điểm; sửa trực tiếp nếu cần. Câu chưa xác định được đáp án sẽ được đánh dấu để giáo viên tự kiểm tra.
 3. **Tải file ZIP** — đặt tiêu đề, chọn chế độ làm bài rồi tải xuống. File HTML bên trong mở được trên máy không có mạng: mọi CSS, JavaScript, công thức và ảnh đã nhúng sẵn; manifest và service worker đi kèm để dùng ngoại tuyến.
 
 ## Định dạng Word được hỗ trợ
 
 - Câu hỏi bắt đầu bằng `Câu 1.`, `Câu 2:` (hỗ trợ cả `Cau 1.` không dấu).
 - Phương án `A.`, `B.`, `C.`, `D.`; đáp án đúng đánh dấu bằng `*`, gạch chân hoặc in đậm.
-- Câu đúng/sai với các ý `a)`, `b)`, `c)`, `d)` và đáp án `Đ`/`S`.
-- Câu trả lời ngắn: đáp án là một số hoặc chuỗi ngắn.
-- Bảng đáp án đặt ở cuối đề (`ĐÁP ÁN PHẦN I`, ...) theo hàng ngang hoặc hàng dọc.
+- Câu đúng/sai với các ý `a)`, `b)`, `c)`, `d)` và đáp án `Đ`/`S`; gạch chân một ý nghĩa là ý đó **đúng**, các ý còn lại là **sai**.
+- Câu trả lời ngắn: đáp án là một số hoặc chuỗi ngắn, có thể ghi cùng dòng (`Đáp án: 5`) hoặc ở dòng riêng ngay sau câu hỏi (`5`).
+- Bảng đáp án đặt ở cuối đề (`ĐÁP ÁN PHẦN I`, ...) theo hàng ngang, hàng dọc, cặp cột `Câu | Đáp án | Câu | Đáp án`, cột phụ `Câu 2`, ô câu gộp dọc và bảng ma trận `Câu hỏi | Mã đề thi`. Bảng ma trận nhiều mã đề chỉ đọc mã đầu tiên và cảnh báo để giáo viên kiểm tra.
 - Công thức toán (OMML) được chuyển thành LaTeX; ảnh nhúng trong file Word được giữ lại.
 - Nếu thiếu hoặc mâu thuẫn đáp án, hệ thống **không tự đoán**: câu đó được đánh dấu "cần kiểm tra" và chặn xuất file cho tới khi giáo viên sửa.
 
