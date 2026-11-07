@@ -8,7 +8,8 @@
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, TextRun } = require(path.join(ROOT, 'node_modules', 'docx'));
-const { ensureServer, stopServer, uploadDocx } = require('./helpers');
+const JSZip = require(path.join(ROOT, 'node_modules', 'jszip'));
+const { BASE, ensureServer, stopServer, uploadDocx } = require('./helpers');
 
 let passed = 0, failed = 0;
 function check(name, cond, detail) {
@@ -57,12 +58,21 @@ async function preview(buffer) {
 }
 
 async function exportHtml(body) {
-    const res = await fetch(process.env.TEST_BASE || 'http://127.0.0.1:3999' + '/api/export', {
+    const res = await fetch(BASE + '/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
     });
-    return { status: res.status, text: await res.text() };
+    const buffer = Buffer.from(await res.arrayBuffer());
+    let text = '';
+    if (/application\/zip/.test(res.headers.get('content-type') || '')) {
+        const zip = await JSZip.loadAsync(buffer);
+        const name = Object.keys(zip.files).filter(function (n) { return /\.html$/i.test(n); })[0];
+        if (name) text = await zip.files[name].async('string');
+    } else {
+        text = buffer.toString('utf8');
+    }
+    return { status: res.status, text: text };
 }
 
 (async function main() {

@@ -94,8 +94,8 @@ check('la mot file HTML day du', () => {
     assert.ok(html.includes('id="quiz-data"'));
     assert.ok(html.includes('offlineQuiz:'));
 });
-check('chi co 2 the script (du lieu + ung dung)', () => {
-    assert.strictEqual((html.match(/<\/script>/g) || []).length, 2);
+check('chi co 3 the script (du lieu + ung dung + PWA)', () => {
+    assert.strictEqual((html.match(/<\/script>/g) || []).length, 3);
 });
 check('noi dung dap an duoc nhung', () => {
     assert.ok(html.includes('Thủ đô Việt Nam?'));
@@ -109,7 +109,7 @@ check('noi dung chua </script> khong pha duoc file', () => {
         questions: evilQuestions,
         settings: { mode: 'exam' }
     });
-    assert.strictEqual((evil.match(/<\/script>/g) || []).length, 2);
+    assert.strictEqual((evil.match(/<\/script>/g) || []).length, 3);
     assert.ok(!evil.includes('</script><script>alert(1)</script>'));
     assert.ok(evil.includes('\\u003c/script'), 'JSON chua duoc escape "<"');
 });
@@ -209,7 +209,7 @@ check('tra loi ngan: o nhap ro rang tren dien thoai', () => {
     assert.ok(html.includes('aria-label="Trả lời ngắn cho câu \' + (pos + 1) + \'"'), 'o nhap thieu nhan cho trinh doc man hinh');
 });
 
-console.log('file HTML doc lap (template, khong PWA)');
+console.log('goi ZIP PWA');
 const pkgSettings = { mode: 'practice', attempts: 3, showAnswers: true };
 const pkg = offline.renderPackage({ title: 'Đề lịch sử', questions: questions, settings: pkgSettings });
 
@@ -238,29 +238,44 @@ check('du lieu cau hoi chua </script> khong dong the som', () => {
         questions: evilQuestions,
         settings: { mode: 'exam' }
     });
-    assert.strictEqual((evil.html.match(/<\/script>/g) || []).length, 2);
+    assert.strictEqual((evil.html.match(/<\/script>/g) || []).length, 3);
     assert.ok(evil.html.includes('\\u003c/script'), 'JSON chua duoc escape "<"');
     assert.ok(!evil.html.includes('</script><script>alert(1)</script>'), 'noi dung dong the som');
 });
 
-check('renderPackage chi tra fileName + html', () => {
+check('renderPackage tra fileName, html, manifest, service worker, icon', () => {
     assert.strictEqual(pkg.fileName, 'De-lich-su.html');
-    assert.deepStrictEqual(Object.keys(pkg).sort(), ['fileName', 'html']);
+    assert.deepStrictEqual(Object.keys(pkg).sort(),
+        ['fileName', 'html', 'icon192', 'icon512', 'manifest', 'serviceWorker']);
     assert.ok(pkg.html.length > 1000);
+    assert.ok(Buffer.isBuffer(pkg.icon192) && pkg.icon192.length > 0);
+    assert.ok(Buffer.isBuffer(pkg.icon512) && pkg.icon512.length > 0);
 });
 
-check('file xuat khong phu thuoc mang/manifest/service worker', () => {
-    assert.ok(!/manifest\.webmanifest/.test(pkg.html), 'con manifest');
-    assert.ok(!/sw\.js/.test(pkg.html), 'con service worker');
-    assert.ok(!/serviceWorker/.test(pkg.html), 'con dang ky service worker');
+check('HTML chi dung tai nguyen PWA noi bo, khong phu thuoc mang', () => {
+    assert.ok(pkg.html.includes('./manifest.webmanifest'), 'thieu manifest');
+    assert.ok(pkg.html.includes('./sw.js'), 'thieu service worker');
+    assert.ok(/serviceWorker/.test(pkg.html), 'thieu dang ky service worker');
     assert.ok(!/<script[^>]+src=/i.test(pkg.html), 'con script ngoai');
-    assert.ok(!/<link[^>]+href=/i.test(pkg.html), 'con link ngoai');
+    assert.ok(!/https?:\/\//i.test(pkg.html), 'con URL ngoai');
     assert.ok(!/\/api\//.test(pkg.html), 'con goi /api/');
 });
 
-check('readTemplate chi doc file HTML', () => {
+check('manifest tro dung file HTML va JSON hop le', () => {
+    const manifest = JSON.parse(pkg.manifest);
+    assert.strictEqual(manifest.start_url, './De-lich-su.html');
+    assert.strictEqual(manifest.id, './De-lich-su.html');
+});
+
+check('service worker tro dung file HTML', () => {
+    assert.ok(pkg.serviceWorker.includes("var APP_FILE = './De-lich-su.html';"));
+    assert.ok(/CACHE_PREFIX = 'quiz-De-lich-su-'/.test(pkg.serviceWorker));
+});
+
+check('readTemplate doc du template PWA', () => {
     const tpl = offline.readTemplate();
-    assert.deepStrictEqual(Object.keys(tpl), ['html']);
+    assert.deepStrictEqual(Object.keys(tpl).sort(),
+        ['html', 'icon192', 'icon512', 'manifest', 'sw']);
 });
 
 check('hai de khac ten -> fileName khac nhau', () => {

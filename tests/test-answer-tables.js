@@ -8,6 +8,7 @@
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, VerticalMergeType } = require(path.join(ROOT, 'node_modules', 'docx'));
+const JSZip = require(path.join(ROOT, 'node_modules', 'jszip'));
 const { BASE, ensureServer, stopServer, uploadDocx } = require('./helpers');
 
 let passed = 0, failed = 0;
@@ -398,8 +399,8 @@ async function buildFullFlow() {
         q10[4] && q10[4].correctAnswer === '24', q10[4] && q10[4].correctAnswer);
     check('không còn câu nào cần kiểm tra', q10.every(function (q) { return q.needsReview === false; }), JSON.stringify(q10.map(function (q) { return q.reviewReasons; })));
 
-    console.log('\n=== 11. Xuất file HTML từ đề đã ghép bảng đáp án ===');
-    const exportRes = await fetch((process.env.TEST_BASE || 'http://127.0.0.1:3999') + '/api/export', {
+    console.log('\n=== 11. Xuất file ZIP từ đề đã ghép bảng đáp án ===');
+    const exportRes = await fetch(BASE + '/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -409,8 +410,13 @@ async function buildFullFlow() {
             settings: { mode: 'exam', minutes: 30 }
         })
     });
-    const exportText = await exportRes.text();
-    check('xuất file thành công', exportRes.status === 200, exportText.slice(0, 200));
+    const zip = await JSZip.loadAsync(Buffer.from(await exportRes.arrayBuffer()));
+    const htmlName = Object.keys(zip.files).filter(function (n) { return /\.html$/i.test(n); })[0];
+    const exportText = htmlName ? await zip.files[htmlName].async('string') : '';
+    check('xuất file thành công', exportRes.status === 200 && /application\/zip/.test(exportRes.headers.get('content-type') || ''),
+        exportRes.status + ' ' + exportRes.headers.get('content-type'));
+    check('zip có manifest + service worker + icon', ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']
+        .every(function (n) { return !!zip.files[n]; }), JSON.stringify(Object.keys(zip.files)));
     check('là file HTML đầy đủ', /^<!doctype html>/i.test(exportText) && exportText.indexOf('</html>') > 0);
     check('có đủ 5 câu trong file', exportText.indexOf('"questions"') > 0 && exportText.indexOf('2 + 3') > 0);
 

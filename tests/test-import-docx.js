@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Test luong chinh: .docx -> /api/extract -> /api/export -> 1 file HTML doc lap.
+ * Test luong chinh: .docx -> /api/extract -> /api/export -> 1 file ZIP (HTML + PWA).
  *
  * Tu khoi dong server o cong 3999 neu chua co. Chay:
  *   node tests/test-import-docx.js
@@ -11,6 +11,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, TextRun, ImageRun } = require(path.join(ROOT, 'node_modules', 'docx'));
+const JSZip = require(path.join(ROOT, 'node_modules', 'jszip'));
 
 const PORT = 3999;
 const BASE = process.env.TEST_BASE || ('http://127.0.0.1:' + PORT);
@@ -60,14 +61,23 @@ async function upload(name, buffer) {
     return { status: res.status, json };
 }
 
-async function exportHtml(payload) {
+async function exportZip(payload) {
     const res = await fetch(BASE + '/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-    const text = await res.text();
-    return { status: res.status, headers: res.headers, text };
+    const buffer = Buffer.from(await res.arrayBuffer());
+    let entries = null, html = '', json = null;
+    if (/application\/zip/.test(res.headers.get('content-type') || '')) {
+        const zip = await JSZip.loadAsync(buffer);
+        entries = zip.files;
+        const htmlName = Object.keys(entries).filter(n => /\.html$/i.test(n))[0];
+        if (htmlName) html = await entries[htmlName].async('string');
+    } else {
+        try { json = JSON.parse(buffer.toString('utf8')); } catch (e) { /* ignore */ }
+    }
+    return { status: res.status, headers: res.headers, buffer, entries, html, json };
 }
 
 (async function main() {
@@ -128,8 +138,8 @@ async function exportHtml(payload) {
     const big = await upload('qua-lon.docx', Buffer.alloc(16 * 1024 * 1024, 0x41));
     check('file 16MB bi chan', big.status === 400 && /quá lớn/i.test(big.json.error || ''), JSON.stringify(big.json));
 
-    console.log('\n=== 5. Xuat HTML tu file mau ===');
-    const ex = await exportHtml({
+    console.log('\n=== 5. Xuat ZIP tu file mau ===');
+    const ex = await exportZip({
         sessionId: mau.json.sessionId,
         title: 'Đề kiểm tra Toán',
         subject: 'Toán',
@@ -137,19 +147,22 @@ async function exportHtml(payload) {
         settings: { mode: 'exam', minutes: 45 }
     });
     check('export tra 200', ex.status === 200, 'status=' + ex.status);
-    check('Content-Type text/html', /text\/html/.test(ex.headers.get('content-type') || ''), ex.headers.get('content-type'));
-    check('Content-Disposition .html', /attachment;.*\.html/.test(ex.headers.get('content-disposition') || ''),
+    check('Content-Type application/zip', /application\/zip/.test(ex.headers.get('content-type') || ''), ex.headers.get('content-type'));
+    check('Content-Disposition .zip', /attachment;.*\.zip/.test(ex.headers.get('content-disposition') || ''),
         ex.headers.get('content-disposition'));
-    check('la file HTML day du', /^<!doctype html>/i.test(ex.text) && ex.text.indexOf('</html>') > 0);
-    check('co du lieu cau hoi', ex.text.indexOf('id="quiz-data"') > 0 && ex.text.indexOf('Gia tri cua') > 0);
-    check('cong thuc da thanh MathML', ex.text.indexOf('u003cmath') > 0);
-    check('khong con token anh', ex.text.indexOf('[[IMG:') < 0);
-    check('khong phu thuoc mang ngoai', !/<script[^>]+src=/i.test(ex.text) && !/<link[^>]+href=/i.test(ex.text));
-    check('khong co manifest/service worker', ex.text.indexOf('manifest.webmanifest') < 0 && ex.text.indexOf('sw.js') < 0);
-    check('khong goi /api/', !/(?:src|href|fetch\()\s*[="'(]*\/api\//i.test(ex.text));
-    check('khong co http://localhost', ex.text.indexOf('http://localhost') < 0);
-    check('co lich su lam bai (localStorage)', /localStorage/.test(ex.text) && /Lịch sử làm bài/.test(ex.text));
-    check('co cham diem trong file', /scoreQuestion|function score/.test(ex.text));
+    const names = ex.entries ? Object.keys(ex.entries) : [];
+    check('zip co du 5 file', ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png'].every(n => names.indexOf(n) >= 0) &&
+        names.some(n => /\.html$/i.test(n)), JSON.stringify(names));
+    check('la file HTML day du', /^<!doctype html>/i.test(ex.html) && ex.html.indexOf('</html>') > 0);
+    check('co du lieu cau hoi', ex.html.indexOf('id="quiz-data"') > 0 && ex.html.indexOf('Gia tri cua') > 0);
+    check('cong thuc da thanh MathML', ex.html.indexOf('u003cmath') > 0);
+    check('khong con token anh', ex.html.indexOf('[[IMG:') < 0);
+    check('khong phu thuoc mang ngoai', !/https?:\/\/(?!www\.w3\.org\/)/i.test(ex.html) && !/<script[^>]+src=/i.test(ex.html));
+    check('co manifest/service worker noi bo', ex.html.indexOf('./manifest.webmanifest') > 0 && ex.html.indexOf('./sw.js') > 0);
+    check('khong goi /api/', !/(?:src|href|fetch\()\s*[="'(]*\/api\//i.test(ex.html));
+    check('khong co http://localhost', ex.html.indexOf('http://localhost') < 0);
+    check('co lich su lam bai (localStorage)', /localStorage/.test(ex.html) && /Lịch sử làm bài/.test(ex.html));
+    check('co cham diem trong file', /scoreQuestion|function score/.test(ex.html));
 
     console.log('\n=== 6. Anh nhung -> data URI trong file xuat ===');
     const imgDoc = await docxBuffer([
@@ -166,24 +179,24 @@ async function exportHtml(payload) {
     const imgQ = (img.json && img.json.questions) || [];
     check('extract anh: co token [[IMG:n]]', imgQ[0] && /\[\[IMG:\d+\]\]/.test(imgQ[0].question), JSON.stringify(imgQ[0] && imgQ[0].question));
     check('extract anh: imagePool co du lieu', !!(img.json && img.json.imagePool && Object.keys(img.json.imagePool).length));
-    const imgEx = await exportHtml({
+    const imgEx = await exportZip({
         sessionId: img.json.sessionId,
         title: 'Đề có ảnh',
         questions: img.json.questions,
         settings: { mode: 'practice' }
     });
-    check('file xuat co anh data URI', imgEx.status === 200 && imgEx.text.indexOf('data:image/png;base64,') > 0);
-    check('file xuat khong con token anh', imgEx.text.indexOf('[[IMG:') < 0);
+    check('file xuat co anh data URI', imgEx.status === 200 && imgEx.html.indexOf('data:image/png;base64,') > 0);
+    check('file xuat khong con token anh', imgEx.html.indexOf('[[IMG:') < 0);
 
     console.log('\n=== 7. Export tu choi du lieu sai / phien het han ===');
-    const noSession = await exportHtml({ sessionId: 'khong-ton-tai', questions: mau.json.questions, title: 'x' });
+    const noSession = await exportZip({ sessionId: 'khong-ton-tai', questions: mau.json.questions, title: 'x' });
     check('session khong ton tai -> 400', noSession.status === 400);
     const badQ = JSON.parse(JSON.stringify(mau.json.questions));
     badQ[1].correct = null;
-    const bad = await exportHtml({ sessionId: mau.json.sessionId, title: 'x', questions: badQ });
-    check('cau thieu dap an -> khong xuat (400)', bad.status === 400 && /chưa hợp lệ/i.test(JSON.parse(bad.text).error || ''),
-        bad.text.slice(0, 160));
-    check('file HTML khong duoc tao khi co cau loi', bad.text.indexOf('<!doctype html>') < 0);
+    const bad = await exportZip({ sessionId: mau.json.sessionId, title: 'x', questions: badQ });
+    check('cau thieu dap an -> khong xuat (400)', bad.status === 400 && /chưa hợp lệ/i.test((bad.json && bad.json.error) || ''),
+        JSON.stringify(bad.json).slice(0, 160));
+    check('file ZIP khong duoc tao khi co cau loi', bad.entries === null);
 
     console.log('\n=== 8. Gioi han phien RAM ===');
     const importSessions = require(path.join(ROOT, 'lib', 'import-sessions'));
