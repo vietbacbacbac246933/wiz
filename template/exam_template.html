@@ -8,8 +8,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="{{SHORT_TITLE}}">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-192.png">
 <title>{{TITLE}}</title>
 <style>
 :root{
@@ -166,14 +164,9 @@ body.locked .input,body.locked .short{-webkit-user-select:text;user-select:text}
   .bottombar,.result-actions,.jumpnav,.ask{display:none}
   .quizhead{position:static;box-shadow:none}
 }
-#offline-status{margin:8px auto 0;padding:6px 12px;max-width:880px;width:calc(100% - 24px);border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--muted);font-size:.78rem;line-height:1.35}
-#offline-status[data-state="ready"]{background:var(--ok-soft);border-color:#b8e5c6;color:#166534}
-#offline-status[data-state="limited"]{background:var(--warn-soft);border-color:#f6d9a8;color:#7c4a03}
-@media (max-width:560px){#offline-status{margin-top:6px;font-size:.74rem}}
-</style>
+@media (max-width:560px){</style>
 </head>
 <body>
-<div id="offline-status" role="status" aria-live="polite">Đang kiểm tra khả năng dùng ngoại tuyến…</div>
 <div id="app"></div>
 <script id="quiz-data" type="application/json">{{QUIZ_DATA}}</script>
 <script>(function clientApp(buildOrder) {
@@ -985,48 +978,6 @@ body.locked .input,body.locked .short{-webkit-user-select:text;user-select:text}
     }
     return order;
 });</script>
-<script>
-(function () {
-  var status = document.getElementById('offline-status');
-  function setStatus(message, state) {
-    if (!status) return;
-    status.textContent = message;
-    status.setAttribute('data-state', state || 'limited');
-  }
-  function onlineMessage() {
-    if (!navigator.onLine) {
-      setStatus('Bạn đang ngoại tuyến. Nếu trang đã được lưu trước đó, bạn vẫn có thể làm bài; lịch sử được lưu trên thiết bị này.', 'ready');
-    }
-  }
-  window.addEventListener('online', function () {
-    setStatus('Đã có kết nối mạng. Bài làm và lịch sử vẫn được lưu trên thiết bị này.', 'ready');
-  });
-  window.addEventListener('offline', onlineMessage);
-  if (!('serviceWorker' in navigator)) {
-    setStatus('Trình duyệt này không hỗ trợ lưu bài để dùng ngoại tuyến. Hãy mở bằng Safari hoặc Chrome.', 'limited');
-    return;
-  }
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    setStatus('Cần mở bài thi bằng đường link HTTPS để bật chế độ ngoại tuyến.', 'limited');
-    return;
-  }
-  navigator.serviceWorker.register('./sw.js')
-    .then(function (registration) {
-      if (registration.active || navigator.serviceWorker.controller) {
-        setStatus('Chế độ ngoại tuyến đã sẵn sàng. Hãy mở trang này online một lần trước khi ngắt mạng.', 'ready');
-      } else {
-        setStatus('Đang lưu bản dùng ngoại tuyến. Giữ trang mở thêm vài giây, rồi tải lại một lần.', 'limited');
-      }
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        setStatus('Chế độ ngoại tuyến đã sẵn sàng. Bạn có thể mở lại bài thi khi mất mạng.', 'ready');
-      });
-      if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    })
-    .catch(function () {
-      setStatus('Chưa bật được chế độ ngoại tuyến trong trình duyệt này. Hãy mở link bằng Safari hoặc Chrome.', 'limited');
-    });
-  onlineMessage();
-})();
-</script>
+
 </body>
 </html>
