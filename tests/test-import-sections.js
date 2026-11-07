@@ -9,17 +9,13 @@
  * - Phần chỉ MỘT VÀI câu mất phương án thì giữ nguyên single + cần kiểm tra,
  *   không tự đổi cả phần thành trả lời ngắn.
  *
- * Yêu cầu server đang chạy với TEACHER_PASSWORD=test123:
- *   $env:PORT='3999'; $env:TEACHER_PASSWORD='test123'; node server.js
- *   node tests/test-import-sections.js
+ * Chay: node tests/test-import-sections.js
  */
 
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, VerticalMergeType } = require(path.join(ROOT, 'node_modules', 'docx'));
-
-const BASE = process.env.TEST_BASE || 'http://127.0.0.1:3999';
-const PASSWORD = process.env.TEST_PASSWORD || 'test123';
+const { ensureServer, stopServer, uploadDocx } = require('./helpers');
 
 let passed = 0, failed = 0;
 function check(name, cond, detail) {
@@ -46,26 +42,8 @@ async function docx(children) {
     return Packer.toBuffer(new Document({ sections: [{ children: children }] }));
 }
 
-async function login() {
-    const res = await fetch(BASE + '/api/teacher/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: PASSWORD })
-    });
-    const raw = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
-    if (!raw || !raw[0]) throw new Error('Không lấy được cookie đăng nhập (HTTP ' + res.status + ')');
-    return raw[0].split(';')[0];
-}
-
-async function preview(cookie, buffer) {
-    const fd = new FormData();
-    fd.append('file', new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    }), 'de.docx');
-    const res = await fetch(BASE + '/api/import/preview', {
-        method: 'POST', headers: { Cookie: cookie }, body: fd
-    });
-    return { status: res.status, json: await res.json().catch(function () { return null; }) };
+async function preview(buffer) {
+    return uploadDocx(buffer, 'de.docx');
 }
 
 // --- Mẫu 1: đề 2025, PHẦN II ghi "chọn đúng hoặc sai", bảng gộp ô "Câu" ---
@@ -127,17 +105,10 @@ async function buildPartlyBrokenSection() {
 }
 
 (async function main() {
-    let cookie;
-    try {
-        cookie = await login();
-    } catch (e) {
-        console.error('\nKhông đăng nhập được: ' + e.message);
-        console.error('Hãy chạy: $env:PORT=\'3999\'; $env:TEACHER_PASSWORD=\'test123\'; node server.js');
-        process.exit(2);
-    }
+    await ensureServer();
 
     console.log('\n=== 1. PHẦN II ghi "chọn đúng hoặc sai" ===');
-    const p1 = await preview(cookie, await buildTFWithScoredHeading());
+    const p1 = await preview(await buildTFWithScoredHeading());
     const q1 = (p1.json && p1.json.questions) || [];
     check('preview thành công', p1.json && p1.json.success === true, JSON.stringify(p1.json).slice(0, 300));
     check('có 2 câu', q1.length === 2, 'count=' + q1.length);
@@ -148,7 +119,7 @@ async function buildPartlyBrokenSection() {
     check('bảng đáp án ghép đủ 8 ý', (p1.json.answerTables.tables[0] || {}).applied === 8, JSON.stringify(p1.json.answerTables));
 
     console.log('\n=== 2. PHẦN III không ghi loại, câu không có phương án ===');
-    const p2 = await preview(cookie, await buildShortWithoutTypeHeading());
+    const p2 = await preview(await buildShortWithoutTypeHeading());
     const q2 = (p2.json && p2.json.questions) || [];
     check('preview thành công', p2.json && p2.json.success === true, JSON.stringify(p2.json).slice(0, 300));
     check('câu 1 là trả lời ngắn', q2[0] && q2[0].type === 'shortanswer', q2[0] && q2[0].type);
@@ -157,7 +128,7 @@ async function buildPartlyBrokenSection() {
     check('không câu nào cần kiểm tra', q2.every(function (q) { return q.needsReview === false; }));
 
     console.log('\n=== 3. Phần trắc nghiệm chỉ một câu mất phương án ===');
-    const p3 = await preview(cookie, await buildPartlyBrokenSection());
+    const p3 = await preview(await buildPartlyBrokenSection());
     const q3 = (p3.json && p3.json.questions) || [];
     check('câu 1 vẫn là trắc nghiệm', q3[0] && q3[0].type === 'single', q3[0] && q3[0].type);
     check('câu 2 không bị đổi thành trả lời ngắn', q3[1] && q3[1].type === 'single', q3[1] && q3[1].type);
@@ -165,8 +136,10 @@ async function buildPartlyBrokenSection() {
 
     console.log('\n----------------------------------------');
     console.log('Kết quả: ' + passed + ' PASS, ' + failed + ' FAIL');
+    stopServer();
     process.exit(failed ? 1 : 0);
 })().catch(function (e) {
     console.error(e);
+    stopServer();
     process.exit(1);
 });

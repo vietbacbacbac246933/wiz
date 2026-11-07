@@ -1,10 +1,8 @@
-// Kiem thu quy tac diem, cham diem, sanitize HTML, anh tai len.
-// Chay: npm run test:question-editor
+// Kiem thu quy tac diem, cham diem, sanitize HTML, kiem tra file tai len.
+// Chay: node tests/test-question-editor.js
 var assert = require('assert');
 var qc = require('../lib/question-content');
-var assets = require('../lib/assets');
 var fileValidate = require('../lib/file-validate');
-var DATA = require('../lib/datastore');
 
 var norm = qc.normalizePoints;
 var parse = qc.parsePointsInput;
@@ -36,20 +34,13 @@ assert.strictEqual(score({ type: 'truefalse', correctTF: [true, false] }, [true,
 assert.strictEqual(score({ type: 'shortanswer', correctAnswer: '2.5' }, '2,5'), 1);
 assert.strictEqual(score({ type: 'shortanswer', correctAnswer: '2.5' }, '3'), 0);
 
-// ---- Sanitize HTML: giu cong thuc, cho phep anh dung, chan XSS ----
-var assetId = assets.newId('image/png');
-assert.ok(assets.isAssetId(assetId));
-var assetUrl = assets.urlForId(assetId);
-assert.ok(assets.isAssetUrl(assetUrl));
-assert.ok(!assets.isAssetUrl('/api/assets/../../secret.png'));
-
+// ---- Sanitize HTML: giu cong thuc, cho phep anh data URI, chan XSS ----
 var latex = 'Phân số \\(\\frac{a+b}{c}\\) và hệ \\[\\begin{cases}x+y=3\\\\x-y=1\\end{cases}\\]';
 var clean = sanitize(latex);
 assert.ok(clean.indexOf('\\(\\frac{a+b}{c}\\)') >= 0);
 assert.ok(clean.indexOf('\\begin{cases}') >= 0);
 
 assert.ok(sanitize('<img src="data:image/png;base64,AAAA" alt="a">').indexOf('data:image/png') >= 0);
-assert.ok(sanitize('<img src="' + assetUrl + '" alt="a">').indexOf(assetUrl) >= 0);
 assert.strictEqual(sanitize('<img src="https://evil.example/x.png">').indexOf('evil.example'), -1);
 assert.strictEqual(sanitize('<script>alert(1)</script><b onclick="x()">ok</b>'), '<b>ok</b>');
 assert.strictEqual(sanitize('<div>dòng 1</div><div>dòng 2</div>'), '<div>dòng 1</div><div>dòng 2</div>');
@@ -72,20 +63,4 @@ var huge = Buffer.alloc(fileValidate.FILE_LIMITS.maxImageBytes + 1);
 var tooBig = fileValidate.validateUpload({ originalname: 'a.png', mimetype: 'image/png', buffer: huge });
 assert.strictEqual(tooBig.ok, false);
 
-// ---- Luu/doc anh (filesystem; bo qua neu dang dung PostgreSQL) ----
-(async function () {
-    if (!process.env.DATABASE_URL) {
-        await DATA.init();
-        var id = assets.newId('image/png');
-        await DATA.saveAsset(id, png);
-        var got = await DATA.readAsset(id);
-        assert.ok(Buffer.isBuffer(got));
-        assert.ok(got.equals(png));
-        await DATA.deleteAsset(id);
-        assert.strictEqual(await DATA.readAsset(id), null);
-    }
-    console.log('PASS: question-editor tests');
-})().catch(function (err) {
-    console.error(err);
-    process.exit(1);
-});
+console.log('PASS: question-editor tests');

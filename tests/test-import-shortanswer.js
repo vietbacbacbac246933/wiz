@@ -2,19 +2,13 @@
 /**
  * Test import Word: nhận diện Phần trả lời ngắn, tách câu, lưu và chấm điểm.
  *
- * Yêu cầu server đang chạy với TEACHER_PASSWORD=test123:
- *   $env:PORT='3999'; $env:TEACHER_PASSWORD='test123'; node server.js
- *   node tests/test-import-shortanswer.js
- *
- * Đổi địa chỉ bằng TEST_BASE (mặc định http://127.0.0.1:3999).
+ * Chay: node tests/test-import-shortanswer.js
  */
 
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, TextRun } = require(path.join(ROOT, 'node_modules', 'docx'));
-
-const BASE = process.env.TEST_BASE || 'http://127.0.0.1:3999';
-const PASSWORD = process.env.TEST_PASSWORD || 'test123';
+const { ensureServer, stopServer, uploadDocx } = require('./helpers');
 
 let passed = 0, failed = 0;
 function check(name, cond, detail) {
@@ -58,65 +52,25 @@ async function buildDocx() {
     return Packer.toBuffer(doc);
 }
 
-async function login() {
-    const res = await fetch(BASE + '/api/teacher/login', {
+async function preview(buffer) {
+    return uploadDocx(buffer, 'de-tra-loi-ngan.docx');
+}
+
+async function exportHtml(body) {
+    const res = await fetch(process.env.TEST_BASE || 'http://127.0.0.1:3999' + '/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: PASSWORD })
-    });
-    const raw = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
-    if (!raw || !raw[0]) throw new Error('Không lấy được cookie đăng nhập (HTTP ' + res.status + ')');
-    return raw[0].split(';')[0];
-}
-
-async function preview(cookie, buffer) {
-    const fd = new FormData();
-    fd.append('file', new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    }), 'de-tra-loi-ngan.docx');
-    const res = await fetch(BASE + '/api/import/preview', {
-        method: 'POST', headers: { Cookie: cookie }, body: fd
-    });
-    return { status: res.status, json: await res.json().catch(() => null) };
-}
-
-async function confirm(cookie, body) {
-    const res = await fetch(BASE + '/api/import/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: cookie },
         body: JSON.stringify(body)
     });
-    return { status: res.status, json: await res.json().catch(() => null) };
-}
-
-async function submit(answers, stt) {
-    const res = await fetch(BASE + '/api/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            studentSTT: String(stt || 1),
-            studentName: 'Test Short Answer',
-            studentClass: 'Test',
-            answers: answers,
-            timeSpent: '1 phút'
-        })
-    });
-    return await res.json();
+    return { status: res.status, text: await res.text() };
 }
 
 (async function main() {
-    let cookie;
-    try {
-        cookie = await login();
-    } catch (e) {
-        console.error('\nKhông đăng nhập được: ' + e.message);
-        console.error('Hãy chạy: $env:PORT=\'3999\'; $env:TEACHER_PASSWORD=\'test123\'; node server.js');
-        process.exit(2);
-    }
+    await ensureServer();
 
     console.log('\n=== 1. Preview: nhận diện đúng Phần 3 ===');
     const docx = await buildDocx();
-    const p = await preview(cookie, docx);
+    const p = await preview(docx);
     check('preview thành công', p.json && p.json.success === true, JSON.stringify(p.json).slice(0, 300));
     const qs = (p.json && p.json.questions) || [];
     check('có 6 câu (2 một đáp án, 1 đúng/sai, 3 trả lời ngắn)', qs.length === 6, 'count=' + qs.length);
@@ -138,72 +92,27 @@ async function submit(answers, stt) {
     check('lý do nêu rõ thiếu đáp án', qs[5] && (qs[5].reviewReasons || []).join(' ').indexOf('đáp án') >= 0, JSON.stringify(qs[5] && qs[5].reviewReasons));
     check('"Hết" không lẫn vào câu cuối', qs[5] && !/Hết/i.test(qs[5].question), qs[5] && qs[5].question);
 
-    console.log('\n=== 3. Lưu: câu chưa có đáp án bị bỏ qua, không tự bịa ===');
-    const c = await confirm(cookie, {
-        sessionId: p.json.sessionId,
-        destination: 'current',
-        questions: qs.map(q => ({
-            include: true, type: q.type, question: q.question, options: q.options,
-            correct: q.correct, correctList: q.correctList, correctTF: q.correctTF,
-            correctAnswer: q.correctAnswer
-        }))
-    });
-    check('confirm thành công', c.json && c.json.success === true, JSON.stringify(c.json).slice(0, 300));
-    check('lưu 5 câu hợp lệ', c.json && c.json.saved === 5, 'saved=' + (c.json && c.json.saved));
-    check('bỏ qua 1 câu thiếu đáp án trả lời ngắn', c.json && c.json.skipped.length === 1, JSON.stringify(c.json && c.json.skipped));
-    check('lý do bỏ qua là thiếu đáp án trả lời ngắn',
-        c.json && /trả lời ngắn/i.test(c.json.skipped[0].reason), JSON.stringify(c.json && c.json.skipped));
+    console.log('\n=== 3. Xuất file: chặn câu trả lời ngắn thiếu đáp án ===');
+    const payload = qs.map(q => ({
+        include: true, type: q.type, question: q.question, options: q.options,
+        correct: q.correct, correctList: q.correctList, correctTF: q.correctTF,
+        correctAnswer: q.correctAnswer
+    }));
+    const bad = await exportHtml({ sessionId: p.json.sessionId, title: 'Đề trả lời ngắn', questions: payload });
+    check('còn câu thiếu đáp án -> không xuất (400)', bad.status === 400, bad.text.slice(0, 200));
 
-    console.log('\n=== 4. Dữ liệu đã lưu giữ đúng loại và đáp án ===');
-    const savedRes = await fetch(BASE + '/api/questions', { headers: { Cookie: cookie } });
-    const saved = await savedRes.json();
-    check('lưu đúng 5 câu', Array.isArray(saved) && saved.length === 5, 'len=' + (Array.isArray(saved) ? saved.length : '?'));
-    const shortSaved = (saved || []).filter(q => q.type === 'shortanswer');
-    check('có 2 câu trả lời ngắn đã lưu', shortSaved.length === 2, 'len=' + shortSaved.length);
-    check('đáp án "5" được lưu', shortSaved[0] && shortSaved[0].correctAnswer === '5', JSON.stringify(shortSaved[0] && shortSaved[0].correctAnswer));
-    check('đáp án "3" của câu DNA được lưu', shortSaved[1] && shortSaved[1].correctAnswer === '3', JSON.stringify(shortSaved[1] && shortSaved[1].correctAnswer));
-    check('câu trả lời ngắn không có options', shortSaved[0] && shortSaved[0].options.length === 0, JSON.stringify(shortSaved[0] && shortSaved[0].options));
-
-    console.log('\n=== 5. Học sinh làm bài + chấm điểm ===');
-    await fetch(BASE + '/api/exam/open', { method: 'POST', headers: { Cookie: cookie } });
-    const exam = await (await fetch(BASE + '/api/exam')).json();
-    check('đề trả về 5 câu', exam.questions && exam.questions.length === 5, exam.questions && exam.questions.length);
-    check('đề có câu trả lời ngắn', (exam.questions || []).filter(q => q.type === 'shortanswer').length === 2);
-    check('đề không lộ đáp án trả lời ngắn', JSON.stringify(exam).indexOf('"correctAnswer"') === -1, 'payload leaks correctAnswer');
-
-    const answers = exam.questions.map((q) => {
-        if (q.type === 'single') return 1;
-        if (q.type === 'truefalse') return [true, false];
-        if (/112 mạch/.test(q.question || '')) return '3';
-        return '5';
-    });
-    const r1 = await submit(answers, 901);
-    check('nộp bài thành công', r1 && r1.success === true, JSON.stringify(r1).slice(0, 300));
-    check('cả 5 câu (gồm 2 trả lời ngắn) được chấm đúng', r1 && r1.correctCount === 5, 'correct=' + (r1 && r1.correctCount));
-    check('không có câu bị coi là sai', r1.wrongCount === 0, 'wrong=' + (r1 && r1.wrongCount));
-
-    const answers2 = exam.questions.map((q) => {
-        if (q.type === 'single') return 1;
-        if (q.type === 'truefalse') return [true, false];
-        if (/112 mạch/.test(q.question || '')) return '3,0';
-        return '5.00';
-    });
-    const r2 = await submit(answers2, 902);
-    check('chấp nhận 3,0 và 5.00 (dấu phẩy/chấm, số 0 cuối)', r2 && r2.correctCount === r1.correctCount, JSON.stringify({ r1: r1.correctCount, r2: r2.correctCount }));
-
-    const answers3 = exam.questions.map((q) => {
-        if (q.type === 'single') return 1;
-        if (q.type === 'truefalse') return [true, false];
-        if (/112 mạch/.test(q.question || '')) return 'abc';
-        return '';
-    });
-    const r3 = await submit(answers3, 903);
-    check('đáp án sai định dạng/bỏ trống không được chấm đúng', r3 && r3.correctCount === r1.correctCount - 2, JSON.stringify(r3));
+    payload[5].correctAnswer = '2.5';
+    const ok = await exportHtml({ sessionId: p.json.sessionId, title: 'Đề trả lời ngắn', questions: payload });
+    check('điền đáp án xong -> xuất được (200)', ok.status === 200, ok.text.slice(0, 200));
+    check('file HTML có đủ 6 câu', ok.text.indexOf('"questions"') > 0 && ok.text.indexOf('112 mạch') > 0);
+    check('đáp án trả lời ngắn 2.5 nằm trong file', ok.text.indexOf('2.5') > 0);
 
     console.log('\n----------------------------------------');
     console.log('Kết quả: ' + passed + ' PASS, ' + failed + ' FAIL');
+    stopServer();
     process.exit(failed ? 1 : 0);
 })().catch(e => {
     console.error(e);
+    stopServer();
     process.exit(1);
 });
