@@ -6,7 +6,7 @@
  *
  *   GET  /               giao dien (public/index.html)
  *   POST /api/extract    multipart/form-data, field "file" (.docx, <= 15 MB)
- *   POST /api/export     JSON { sessionId, title, questions, settings } -> file .zip
+ *   POST /api/export     JSON { sessionId, title, questions, settings } -> file .html
  *   GET  /api/health     { ok: true }
  */
 
@@ -105,6 +105,7 @@ app.post('/api/extract', docxUpload.single('file'), function (req, res) {
                     correct: (detected && typeof q.correct === 'number' && q.correct >= 0) ? q.correct : null,
                     correctList: (q.correctList && q.correctList.length) ? q.correctList : null,
                     correctTF: q.correctTF || null,
+                    tfScoring: q.type === 'truefalse' ? (q.tfScoring === 'equal' ? 'equal' : 'partial') : null,
                     correctAnswer: q.type === 'shortanswer' ? (q.correctAnswer || null) : null,
                     points: questionNormalize.normalizePoints(q.points),
                     needsReview: !!q.needsReview,
@@ -127,7 +128,7 @@ app.post('/api/extract', docxUpload.single('file'), function (req, res) {
     });
 });
 
-// Buoc 3: validate lai toan bo cau hoi roi tra ve MOT file ZIP (HTML + PWA).
+// Buoc 3: validate lai toan bo cau hoi roi tra ve MOT file HTML tu chay.
 app.post('/api/export', function (req, res) {
     var body = req.body || {};
     var session = importSessions.get(body.sessionId);
@@ -150,18 +151,21 @@ app.post('/api/export', function (req, res) {
 
     var title = String(body.title == null ? '' : body.title).replace(/[<>]/g, '').trim().slice(0, 100) || 'Bài kiểm tra';
 
-    offlineQuiz.renderZip({
-        title: title,
-        questions: prepared.saved,
-        settings: body.settings
-    }).then(function (pkg) {
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', 'attachment; filename="' + pkg.fileName + '"');
-        res.send(pkg.buffer);
-    }).catch(function (err) {
-        console.error('Lỗi xuất file ZIP:', err);
-        res.status(400).json({ error: err && err.message ? err.message : 'Không tạo được file ZIP.' });
-    });
+    var pkg;
+    try {
+        pkg = offlineQuiz.renderPackage({
+            title: title,
+            questions: prepared.saved,
+            settings: body.settings
+        });
+    } catch (err) {
+        console.error('Lỗi xuất file HTML:', err);
+        return res.status(400).json({ error: err && err.message ? err.message : 'Không tạo được file HTML.' });
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + pkg.fileName + '"');
+    res.send(pkg.html);
 });
 
 // Loi upload (multer) -> JSON gon thay vi trang HTML mac dinh.

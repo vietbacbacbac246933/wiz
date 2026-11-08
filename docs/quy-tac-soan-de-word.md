@@ -18,6 +18,8 @@ dấu **Cần kiểm tra** chứ hệ thống **không tự đoán**.
   và bảng trang trí cho phần câu hỏi.
 - Công thức phải là **Equation của Word** (OMML). Ảnh chụp công thức chỉ được
   giữ làm ảnh, hệ thống **không OCR** để đọc chữ trong ảnh.
+- Ký hiệu vector nên dùng Equation (`\vec{AB}`) hoặc gõ chữ kèm mũi tên tổ hợp
+  (`AB⃗`). Hệ thống tự đổi `AB⃗` sang công thức để file xuất ra không bị mất dấu.
 - Ảnh nhúng trong file được giữ nguyên, nhưng hệ thống **không đọc nội dung chữ
   trong ảnh**. Đừng đưa đề bài hoặc đáp án dưới dạng ảnh chụp.
 
@@ -63,6 +65,10 @@ trong bảng.
 
 Toàn bộ nội dung dẫn dắt của câu phải nằm **trước** các phương án. Đoạn văn nằm
 sau các phương án sẽ không được hiểu là nội dung câu hỏi.
+
+Bảng nội dung như **bảng biến thiên** hoặc **bảng số liệu** đặt giữa câu hỏi và
+phần phương án được giữ nguyên cấu trúc khi xuất file. Không dùng bảng để chứa
+toàn bộ câu hỏi/phương án.
 
 ### 1.3. Phương án
 
@@ -316,7 +322,7 @@ print("hello")
 2. Dùng bộ lọc **Tất cả / Có đáp án / Cần kiểm tra**.
 3. Đọc cảnh báo bảng đáp án (nếu có).
 4. Sửa trực tiếp câu hỏi, đáp án, điểm trên giao diện.
-5. Chỉ xuất ZIP khi mọi câu đã có đáp án hợp lệ. Câu chưa có đáp án (thường
+5. Chỉ xuất file HTML khi mọi câu đã có đáp án hợp lệ. Câu chưa có đáp án (thường
    nằm trong nhóm **Cần kiểm tra**) sẽ bị hệ thống chặn xuất và báo lỗi; hãy sửa
    hết trước khi tải.
 

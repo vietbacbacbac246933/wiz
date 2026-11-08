@@ -8,7 +8,6 @@
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, TextRun } = require(path.join(ROOT, 'node_modules', 'docx'));
-const JSZip = require(path.join(ROOT, 'node_modules', 'jszip'));
 const { BASE, ensureServer, stopServer, uploadDocx } = require('./helpers');
 
 let passed = 0, failed = 0;
@@ -64,15 +63,7 @@ async function exportHtml(body) {
         body: JSON.stringify(body)
     });
     const buffer = Buffer.from(await res.arrayBuffer());
-    let text = '';
-    if (/application\/zip/.test(res.headers.get('content-type') || '')) {
-        const zip = await JSZip.loadAsync(buffer);
-        const name = Object.keys(zip.files).filter(function (n) { return /\.html$/i.test(n); })[0];
-        if (name) text = await zip.files[name].async('string');
-    } else {
-        text = buffer.toString('utf8');
-    }
-    return { status: res.status, text: text };
+    return { status: res.status, text: buffer.toString('utf8') };
 }
 
 async function buildNewForms() {

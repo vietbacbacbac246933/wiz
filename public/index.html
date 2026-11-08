@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Word → ZIP đề thi</title>
+<title>Word → HTML đề thi</title>
 <link rel="stylesheet" href="/katex/katex.min.css">
 <style>
 :root{
@@ -48,6 +48,13 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 .q-head .num{font-weight:800;color:var(--brand)}
 .q-head label{display:flex;gap:6px;align-items:center;font-weight:600;color:var(--ink)}
 .q-head input[type=number]{width:74px}
+.q-head select{width:auto}
+.list-title{font-size:1.05rem;margin:18px 0 6px}
+.filters select{width:auto;border-radius:999px;padding:6px 10px;font-size:.85rem}
+.pointsbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-top:10px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#f8faff}
+.pointsbar label{display:flex;gap:8px;align-items:center;font-weight:600;color:var(--ink)}
+.pointsbar input[type=number]{width:84px}
+.pointsbar .bulk{display:flex;gap:10px;align-items:center}
 [contenteditable]{border:1px solid transparent;border-radius:8px;padding:5px 7px;outline:none}
 [contenteditable]:focus{border-color:var(--brand);background:#fbfbff}
 .q-text{font-weight:600;background:#f7f9fc;border-color:var(--line)}
@@ -59,6 +66,8 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 .tf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .preview{margin-top:8px;padding:8px 10px;border-left:3px solid var(--brand-soft);background:#fafbff;border-radius:0 8px 8px 0;font-size:.95rem}
 .preview img{max-width:100%;height:auto}
+.preview table{border-collapse:collapse;margin:6px 0;max-width:100%}
+.preview th,.preview td{border:1px solid var(--line);padding:3px 8px;text-align:center}
 .preview .math{display:block;margin:4px 0}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -70,8 +79,8 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 </head>
 <body>
 <div id="app">
-  <h1>Chuyển đề Word thành gói ZIP</h1>
-  <p class="muted">Nạp file <b>.docx</b>, kiểm tra câu hỏi, rồi tải về gói ZIP chứa file HTML tự chạy (không cần mạng).</p>
+  <h1>Chuyển đề Word thành file HTML</h1>
+  <p class="muted">Nạp file <b>.docx</b>, kiểm tra câu hỏi, rồi tải về một file HTML tự chạy (không cần mạng).</p>
 
   <section class="card">
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn hoặc kéo thả file Word">
@@ -113,14 +122,28 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
     <div class="toolbar">
       <button class="ghost" id="toggleAll" type="button">Bỏ chọn tất cả</button>
       <span class="spacer"></span>
-      <button id="export" type="button">Tải file ZIP</button>
+      <button id="export" type="button">Tải file HTML</button>
     </div>
 
+    <h2 class="list-title">Danh sách câu hỏi</h2>
     <div class="filters" role="group" aria-label="Lọc câu hỏi">
+      <select id="sectionFilter" aria-label="Lọc theo phần đề"><option value="">Tất cả phần đề</option></select>
       <button class="pill" type="button" data-filter="all" aria-pressed="true">Tất cả (<span data-count="all">0</span>)</button>
-      <button class="pill" type="button" data-filter="answered" aria-pressed="false">Có đáp án (<span data-count="answered">0</span>)</button>
+      <button class="pill" type="button" data-filter="single" aria-pressed="false">Một đáp án (<span data-count="single">0</span>)</button>
+      <button class="pill" type="button" data-filter="truefalse" aria-pressed="false">Đúng/Sai (<span data-count="truefalse">0</span>)</button>
+      <button class="pill" type="button" data-filter="shortanswer" aria-pressed="false">Trả lời ngắn (<span data-count="shortanswer">0</span>)</button>
+      <button class="pill" type="button" data-filter="multi" aria-pressed="false">Nhiều đáp án (<span data-count="multi">0</span>)</button>
       <button class="pill" type="button" data-filter="review" aria-pressed="false">Cần kiểm tra (<span data-count="review">0</span>)</button>
     </div>
+
+    <div class="pointsbar">
+      <span>Tổng điểm: <b id="totalPoints">0</b></span>
+      <span class="muted">Điểm bài thi = tổng điểm các câu đã chọn</span>
+      <span class="spacer"></span>
+      <span class="bulk"><label>Áp dụng <input type="number" id="bulkPoints" min="0.1" max="100" step="0.1" value="1"> điểm cho <span id="bulkScope">tất cả câu</span></label>
+      <button id="applyPoints" type="button">Áp dụng</button></span>
+    </div>
+    <p class="muted" style="margin-top:6px">Chọn một phần đề để lọc và áp dụng nhanh điểm cho các câu của phần đó.</p>
 
     <div id="list"></div>
   </section>
@@ -132,7 +155,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 (function () {
   'use strict';
 
-  var state = { file: null, data: null, questions: [], pool: {}, reverse: {}, filter: 'all' };
+  var state = { file: null, data: null, questions: [], pool: {}, reverse: {}, filter: 'all', section: '' };
   var $ = function (id) { return document.getElementById(id); };
   var list = $('list');
 
@@ -186,8 +209,50 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       : type === 'shortanswer' ? 'Trả lời ngắn' : 'Một đáp án';
   }
 
+  // Câu đã có đáp án hợp lệ cho loại hiện tại chưa? Dùng chung cho badge, bộ lọc
+  // và tổng điểm để trạng thái luôn khớp sau khi giáo viên sửa.
+  function hasAnswer(q) {
+    if (q.type === 'single') {
+      return typeof q.correct === 'number' && q.correct >= 0 && q.correct < (q.options || []).length;
+    }
+    if (q.type === 'multi') return Array.isArray(q.correctList) && q.correctList.length > 0;
+    if (q.type === 'truefalse') {
+      var tf = q.correctTF || [];
+      return tf.length === (q.options || []).length &&
+        tf.every(function (v) { return v === true || v === false; });
+    }
+    if (q.type === 'shortanswer') return !!(q.correctAnswer && String(q.correctAnswer).trim());
+    return false;
+  }
+
   function isReview(q) {
-    return !!(q.needsReview || q.correct === null || q.correct === -1);
+    return !hasAnswer(q);
+  }
+
+  function pointsOf(q) {
+    var n = Number(q.points);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+
+  // Doi loai cau: giu lai dap an cu khi y nghia tuong duong, con lai de trong
+  // cho giao vien chon (khong tu doan dap an).
+  function changeType(q, type) {
+    if (type === q.type) return;
+    if (type === 'single') {
+      q.correct = typeof q.correct === 'number' && q.correct >= 0
+        ? q.correct
+        : (Array.isArray(q.correctList) && q.correctList.length ? q.correctList[0] : null);
+    } else if (type === 'multi') {
+      q.correctList = Array.isArray(q.correctList) && q.correctList.length
+        ? q.correctList
+        : (typeof q.correct === 'number' && q.correct >= 0 ? [q.correct] : []);
+    } else if (type === 'truefalse') {
+      if (!Array.isArray(q.correctTF) || q.correctTF.length !== (q.options || []).length) {
+        q.correctTF = (q.options || []).map(function () { return null; });
+      }
+      if (q.tfScoring !== 'equal') q.tfScoring = 'partial';
+    }
+    q.type = type;
   }
 
   function badge(q) {
@@ -221,6 +286,24 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       '</div>';
   }
 
+  function typeSelect(q, qi) {
+    return '<label>Loại <select data-type="' + qi + '">' +
+      ['single', 'multi', 'truefalse', 'shortanswer'].map(function (t) {
+        return '<option value="' + t + '"' + (q.type === t ? ' selected' : '') + '>' + typeLabel(t) + '</option>';
+      }).join('') +
+      '</select></label>';
+  }
+
+  // Thang điểm câu Đúng/Sai: chọn giữa "mỗi ý 0,25" và thang 0,1/0,25/0,5/1.
+  function tfScoringSelect(q, qi) {
+    if (q.type !== 'truefalse') return '';
+    var partial = q.tfScoring !== 'equal';
+    return '<label>Chấm <select data-tfscoring="' + qi + '">' +
+      '<option value="partial"' + (partial ? ' selected' : '') + '>1 ý 0,1 · 2 ý 0,25 · 3 ý 0,5 · 4 ý 1</option>' +
+      '<option value="equal"' + (partial ? '' : ' selected') + '>Mỗi ý 0,25 điểm</option>' +
+      '</select></label>';
+  }
+
   function questionCard(q, qi) {
     var opts = '';
     if (q.type !== 'shortanswer') {
@@ -232,7 +315,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
     return '<article class="q' + (q.include === false ? ' excluded' : '') + '" data-q="' + qi + '">' +
       '<div class="q-head">' +
         '<span class="num">Câu ' + (q.importNumber || (qi + 1)) + '</span>' +
-        '<span class="chip ok">' + typeLabel(q.type) + '</span>' + badge(q) +
+        badge(q) + typeSelect(q, qi) + tfScoringSelect(q, qi) +
         '<label><input type="checkbox" data-inc="' + qi + '"' + (q.include === false ? '' : ' checked') + '> Đưa vào đề</label>' +
         '<label style="margin-left:auto">Điểm <input type="number" min="0.1" max="100" step="0.1" data-points="' + qi + '" value="' + (q.points || 1) + '"></label>' +
       '</div>' +
@@ -242,27 +325,77 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       '</article>';
   }
 
-  function renderList() {
-    var items = state.questions.map(function (q, i) { return { q: q, i: i }; });
-    var counts = { all: items.length, answered: 0, review: 0 };
-    items.forEach(function (it) {
-      if (isReview(it.q)) counts.review++;
-      else counts.answered++;
+  function matchesFilter(q) {
+    if (state.section && q.importSection !== state.section) return false;
+    if (state.filter === 'review') return isReview(q);
+    if (state.filter !== 'all') return q.type === state.filter;
+    return true;
+  }
+
+  function visibleItems() {
+    return state.questions.map(function (q, i) { return { q: q, i: i }; })
+      .filter(function (it) { return matchesFilter(it.q); });
+  }
+
+  function updateTotals() {
+    var total = state.questions.reduce(function (s, q) {
+      return q.include === false ? s : s + pointsOf(q);
+    }, 0);
+    $('totalPoints').textContent = String(Math.round(total * 100) / 100);
+  }
+
+  function updateCounts() {
+    var counts = { all: state.questions.length, single: 0, multi: 0, truefalse: 0, shortanswer: 0, review: 0 };
+    state.questions.forEach(function (q) {
+      if (isReview(q)) counts.review++;
+      if (counts[q.type] != null) counts[q.type]++;
     });
     Object.keys(counts).forEach(function (key) {
       var el = document.querySelector('[data-count="' + key + '"]');
       if (el) el.textContent = counts[key];
     });
-    var shown = items.filter(function (it) {
-      if (state.filter === 'answered') return !isReview(it.q);
-      if (state.filter === 'review') return isReview(it.q);
-      return true;
+    $('reviewCount').textContent = counts.review + ' cần kiểm tra';
+    $('reviewCount').className = 'chip ' + (counts.review ? 'warn' : 'ok');
+  }
+
+  // Cập nhật badge tại chỗ để không dựng lại danh sách khi chỉ sửa đáp án/điểm
+  // (dựng lại sẽ làm mất focus của ô đang thao tác).
+  function refreshBadges() {
+    Array.prototype.forEach.call(list.querySelectorAll('.q'), function (card) {
+      var q = state.questions[+card.dataset.q];
+      if (!q) return;
+      var chip = card.querySelector('.chip.warn');
+      if (isReview(q) && !chip) {
+        card.querySelector('.num').insertAdjacentHTML('afterend', '<span class="chip warn">Cần kiểm tra</span>');
+      } else if (!isReview(q) && chip) {
+        chip.remove();
+      }
     });
+  }
+
+  function renderList() {
+    var shown = visibleItems();
+    updateCounts();
+    $('bulkScope').textContent = (state.filter === 'all' && !state.section)
+      ? 'tất cả câu' : shown.length + ' câu đang lọc';
     list.innerHTML = shown.length
       ? shown.map(function (it) { return questionCard(it.q, it.i); }).join('')
-      : '<p class="muted" style="margin-top:16px">' +
-        (state.filter === 'review' ? 'Không có câu nào cần kiểm tra.' : 'Không có câu nào có đáp án.') + '</p>';
+      : '<p class="muted" style="margin-top:16px">Không có câu nào khớp bộ lọc.</p>';
     list.querySelectorAll('.preview').forEach(mathPreview);
+    updateTotals();
+  }
+
+  // Gợi ý các phần đề có trong file để lọc và áp điểm nhanh.
+  function renderSections() {
+    var labels = [];
+    state.questions.forEach(function (q) {
+      if (q.importSection && labels.indexOf(q.importSection) < 0) labels.push(q.importSection);
+    });
+    $('sectionFilter').innerHTML = '<option value="">Tất cả phần đề</option>' +
+      labels.map(function (l) {
+        return '<option value="' + escapeHtml(l) + '">' + escapeHtml(l) + '</option>';
+      }).join('');
+    $('sectionFilter').value = state.section;
   }
 
   function tokenizeHtml(html) {
@@ -285,6 +418,11 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       t.closest('.q').classList.toggle('excluded', !t.checked);
     } else if (t.dataset.points != null) {
       state.questions[+t.dataset.points].points = Number(t.value);
+      updateTotals();
+    } else if (t.dataset.type != null) {
+      changeType(state.questions[+t.dataset.type], t.value);
+    } else if (t.dataset.tfscoring != null) {
+      state.questions[+t.dataset.tfscoring].tfScoring = t.value === 'equal' ? 'equal' : 'partial';
     } else if (t.dataset.single != null) {
       state.questions[+t.dataset.single].correct = +t.value;
     } else if (t.dataset.multi != null) {
@@ -321,7 +459,16 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
   }
 
   list.addEventListener('input', onEdit);
-  list.addEventListener('change', onEdit);
+  // Đổi đáp án/điểm: cập nhật badge và bộ đếm tại chỗ, không dựng lại danh sách.
+  // Đổi loại câu thì phải dựng lại vì phần điều khiển đáp án thay đổi.
+  list.addEventListener('change', function (e) {
+    var isType = e.target.dataset.type != null;
+    onEdit(e);
+    if (isType) { renderList(); return; }
+    refreshBadges();
+    updateCounts();
+    updateTotals();
+  });
 
   function readFile(file) {
     if (!file) return;
@@ -368,10 +515,18 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
         Object.keys(state.pool).forEach(function (k) { state.reverse[state.pool[k]] = k; });
         state.questions = json.questions.map(function (q) {
           q.include = true;
-          if (q.type === 'truefalse' && !Array.isArray(q.correctTF)) q.correctTF = [];
+          if (q.type === 'truefalse') {
+            if (!Array.isArray(q.correctTF)) q.correctTF = [];
+            if (q.tfScoring !== 'equal') q.tfScoring = 'partial';
+          }
           return q;
         });
         $('result').hidden = false;
+        state.filter = 'all';
+        state.section = '';
+        document.querySelectorAll('[data-filter]').forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.dataset.filter === 'all'));
+        });
         $('count').textContent = state.questions.length;
         $('reviewCount').textContent = json.needsReview + ' cần kiểm tra';
         $('reviewCount').className = 'chip ' + (json.needsReview ? 'warn' : 'ok');
@@ -380,6 +535,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
         var warnEl = $('importWarnings');
         warnEl.textContent = tableWarnings.join(' ');
         warnEl.className = 'status info' + (tableWarnings.length ? ' show' : '');
+        renderSections();
         renderList();
         setStatus('Trích xuất xong ' + json.count + ' câu. Kiểm tra và sửa nếu cần.', 'ok');
         $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -398,6 +554,28 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
       });
       renderList();
     });
+  });
+
+  $('sectionFilter').addEventListener('change', function () {
+    state.section = this.value;
+    renderList();
+  });
+
+  $('applyPoints').addEventListener('click', function () {
+    var v = Number(String($('bulkPoints').value).replace(',', '.'));
+    if (!(v > 0 && v <= 100)) {
+      setStatus('Điểm phải lớn hơn 0 và không quá 100.', 'err');
+      return;
+    }
+    var shown = visibleItems();
+    if (!shown.length) {
+      setStatus('Không có câu nào khớp bộ lọc để áp điểm.', 'err');
+      return;
+    }
+    var value = Math.round(v * 100) / 100;
+    shown.forEach(function (it) { it.q.points = value; });
+    renderList();
+    setStatus('Đã đặt ' + value + ' điểm cho ' + shown.length + ' câu.', 'ok');
   });
 
   $('mode').addEventListener('change', function () {
@@ -438,7 +616,7 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
     };
     var btn = this;
     btn.disabled = true;
-    setStatus('Đang tạo file ZIP...', 'info');
+    setStatus('Đang tạo file HTML...', 'info');
     fetch('/api/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -450,12 +628,12 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
         return res.blob().then(function (blob) {
           var a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
-          a.download = name ? name[1] : 'de-thi.zip';
+          a.download = name ? name[1] : 'de-thi.html';
           document.body.appendChild(a);
           a.click();
           a.remove();
           setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
-          setStatus('Đã tải file ZIP. Bên trong là file HTML tự chạy kèm manifest, service worker và icon.', 'ok');
+          setStatus('Đã tải file HTML tự chạy. Mọi CSS, JavaScript, công thức và ảnh đã nhúng sẵn trong file.', 'ok');
         });
       })
       .catch(function (err) { setStatus(err.message, 'err'); })

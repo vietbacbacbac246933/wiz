@@ -209,7 +209,7 @@ check('tra loi ngan: o nhap ro rang tren dien thoai', () => {
     assert.ok(html.includes('aria-label="Trả lời ngắn cho câu \' + (pos + 1) + \'"'), 'o nhap thieu nhan cho trinh doc man hinh');
 });
 
-console.log('goi ZIP PWA');
+console.log('goi PWA');
 const pkgSettings = { mode: 'practice', attempts: 3, showAnswers: true };
 const pkg = offline.renderPackage({ title: 'Đề lịch sử', questions: questions, settings: pkgSettings });
 
@@ -217,6 +217,16 @@ check('template HTML day du va khong con placeholder', () => {
     assert.ok(pkg.html.includes('id="quiz-data"'), 'thieu quiz-data');
     assert.ok(pkg.html.includes('</html>'), 'thieu the dong html');
     assert.ok(!pkg.html.includes('{{'), 'con placeholder trong HTML');
+});
+
+check('cau dung/sai: giu thang diem da chon khi xuat', () => {
+    const d = offline.buildData({ title: 'x', questions: [
+        { type: 'truefalse', question: 'a', options: ['a', 'b', 'c', 'd'], correctTF: [true, false, true, false], tfScoring: 'equal', points: 1 },
+        { type: 'truefalse', question: 'b', options: ['a', 'b', 'c', 'd'], correctTF: [true, false, true, false], points: 1 }
+    ] });
+    assert.strictEqual(d.questions[0].tfScoring, 'equal');
+    assert.strictEqual(d.questions[1].tfScoring, 'partial');
+    assert.ok(pkg.html.includes("q.tfScoring === 'equal'"), 'file xuat thieu thang diem moi y');
 });
 
 check('tieu de chua <script> khong chen duoc the', () => {

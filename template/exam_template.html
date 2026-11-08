@@ -290,6 +290,7 @@ body.locked .input,body.locked .short{-webkit-user-select:text;user-select:text}
             for (var j = 0; j < total; j++) {
                 if (Array.isArray(ans) && ans[j] === q.correctTF[j]) correct++;
             }
+            if (q.tfScoring === 'equal') return correct / total;
             if (total === 4) return [0, 0.1, 0.25, 0.5, 1][correct];
             return correct / total;
         }

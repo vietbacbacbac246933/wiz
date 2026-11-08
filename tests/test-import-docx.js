@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Test luong chinh: .docx -> /api/extract -> /api/export -> 1 file ZIP (HTML + PWA).
+ * Test luong chinh: .docx -> /api/extract -> /api/export -> 1 file HTML.
  *
  * Tu khoi dong server o cong 3999 neu chua co. Chay:
  *   node tests/test-import-docx.js
@@ -11,7 +11,6 @@ const path = require('path');
 const { spawn } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, TextRun, ImageRun } = require(path.join(ROOT, 'node_modules', 'docx'));
-const JSZip = require(path.join(ROOT, 'node_modules', 'jszip'));
 
 const PORT = 3999;
 const BASE = process.env.TEST_BASE || ('http://127.0.0.1:' + PORT);
@@ -61,23 +60,20 @@ async function upload(name, buffer) {
     return { status: res.status, json };
 }
 
-async function exportZip(payload) {
+async function exportHtml(payload) {
     const res = await fetch(BASE + '/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
     const buffer = Buffer.from(await res.arrayBuffer());
-    let entries = null, html = '', json = null;
-    if (/application\/zip/.test(res.headers.get('content-type') || '')) {
-        const zip = await JSZip.loadAsync(buffer);
-        entries = zip.files;
-        const htmlName = Object.keys(entries).filter(n => /\.html$/i.test(n))[0];
-        if (htmlName) html = await entries[htmlName].async('string');
+    let html = '', json = null;
+    if (/text\/html/.test(res.headers.get('content-type') || '')) {
+        html = buffer.toString('utf8');
     } else {
         try { json = JSON.parse(buffer.toString('utf8')); } catch (e) { /* ignore */ }
     }
-    return { status: res.status, headers: res.headers, buffer, entries, html, json };
+    return { status: res.status, headers: res.headers, buffer, html, json };
 }
 
 (async function main() {
@@ -87,7 +83,12 @@ async function exportZip(payload) {
     const home = await fetch(BASE + '/');
     const homeBody = await home.text();
     check('/ tra ve trang giao dien', home.ok && /api\/extract/.test(homeBody), 'status=' + home.status);
-    check('giao dien co bo loc cau hoi', /data-filter="review"/.test(homeBody) && /data-filter="answered"/.test(homeBody), 'thieu bo loc');
+    check('giao dien co bo loc theo loai cau', /data-filter="review"/.test(homeBody) &&
+        /data-filter="single"/.test(homeBody) && /data-filter="truefalse"/.test(homeBody) &&
+        /data-filter="shortanswer"/.test(homeBody) && /data-filter="multi"/.test(homeBody), 'thieu bo loc loai cau');
+    check('giao dien co o doi loai cau, tong diem va ap diem hang loat',
+        /data-type=/.test(homeBody) && /id="totalPoints"/.test(homeBody) &&
+        /id="bulkPoints"/.test(homeBody) && /id="applyPoints"/.test(homeBody), 'thieu dieu khien diem/loai cau');
     check('giao dien tu trich xuat sau khi chon file', /function readFile[\s\S]*?runExtract\(\)/.test(homeBody), 'readFile chua goi runExtract');
     const health = await (await fetch(BASE + '/api/health')).json();
     check('/api/health -> ok', health.ok === true);
@@ -105,6 +106,8 @@ async function exportZip(payload) {
         JSON.stringify(mq[6] && mq[6].correctList));
     check('cau dung/sai co correctTF', mq[8] && JSON.stringify(mq[8].correctTF) === JSON.stringify([true, false, true, false]),
         JSON.stringify(mq[8] && mq[8].correctTF));
+    check('cau dung/sai mac dinh cham theo thang 0,1/0,25/0,5/1', mq[8] && mq[8].tfScoring === 'partial',
+        JSON.stringify(mq[8] && mq[8].tfScoring));
     check('cong thuc da giu LaTeX', /\\\(/.test(mq[0] && mq[0].question), JSON.stringify(mq[0] && mq[0].question).slice(0, 120));
     check('khong co cau nao bi danh dau can kiem tra', mau.json.needsReview === 0, 'needsReview=' + (mau.json && mau.json.needsReview));
 
@@ -140,8 +143,8 @@ async function exportZip(payload) {
     const big = await upload('qua-lon.docx', Buffer.alloc(16 * 1024 * 1024, 0x41));
     check('file 16MB bi chan', big.status === 400 && /quá lớn/i.test(big.json.error || ''), JSON.stringify(big.json));
 
-    console.log('\n=== 5. Xuat ZIP tu file mau ===');
-    const ex = await exportZip({
+    console.log('\n=== 5. Xuat file HTML tu file mau ===');
+    const ex = await exportHtml({
         sessionId: mau.json.sessionId,
         title: 'Đề kiểm tra Toán',
         subject: 'Toán',
@@ -149,12 +152,9 @@ async function exportZip(payload) {
         settings: { mode: 'exam', minutes: 45 }
     });
     check('export tra 200', ex.status === 200, 'status=' + ex.status);
-    check('Content-Type application/zip', /application\/zip/.test(ex.headers.get('content-type') || ''), ex.headers.get('content-type'));
-    check('Content-Disposition .zip', /attachment;.*\.zip/.test(ex.headers.get('content-disposition') || ''),
+    check('Content-Type text/html', /text\/html/.test(ex.headers.get('content-type') || ''), ex.headers.get('content-type'));
+    check('Content-Disposition .html', /attachment;.*\.html/.test(ex.headers.get('content-disposition') || ''),
         ex.headers.get('content-disposition'));
-    const names = ex.entries ? Object.keys(ex.entries) : [];
-    check('zip co du 5 file', ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png'].every(n => names.indexOf(n) >= 0) &&
-        names.some(n => /\.html$/i.test(n)), JSON.stringify(names));
     check('la file HTML day du', /^<!doctype html>/i.test(ex.html) && ex.html.indexOf('</html>') > 0);
     check('co du lieu cau hoi', ex.html.indexOf('id="quiz-data"') > 0 && ex.html.indexOf('Gia tri cua') > 0);
     check('cong thuc da thanh MathML', ex.html.indexOf('u003cmath') > 0);
@@ -165,6 +165,27 @@ async function exportZip(payload) {
     check('khong co http://localhost', ex.html.indexOf('http://localhost') < 0);
     check('co lich su lam bai (localStorage)', /localStorage/.test(ex.html) && /Lịch sử làm bài/.test(ex.html));
     check('co cham diem trong file', /scoreQuestion|function score/.test(ex.html));
+
+    console.log('\n=== 5b. Sua diem va loai cau truoc khi xuat ===');
+    const edited = JSON.parse(JSON.stringify(mau.json.questions));
+    edited[0].points = 2.5;
+    edited[0].type = 'multi';
+    edited[0].correctList = [edited[0].correct];
+    const editedTf = edited.find(function (q) { return q.type === 'truefalse'; });
+    if (editedTf) editedTf.tfScoring = 'equal';
+    const editedEx = await exportHtml({
+        sessionId: mau.json.sessionId,
+        title: 'Đề đã sửa điểm',
+        questions: edited,
+        settings: { mode: 'exam', minutes: 45 }
+    });
+    check('doi diem duoc giu khi xuat', editedEx.status === 200 && /"points":2\.5/.test(editedEx.html),
+        'status=' + editedEx.status);
+    check('doi loai cau duoc giu khi xuat', editedEx.status === 200 && /"type":"multi"/.test(editedEx.html),
+        'status=' + editedEx.status);
+    check('thang diem dung/sai duoc giu khi xuat',
+        editedEx.status === 200 && editedTf && /"tfScoring":"equal"/.test(editedEx.html),
+        'status=' + editedEx.status);
 
     console.log('\n=== 6. Anh nhung -> data URI trong file xuat ===');
     const imgDoc = await docxBuffer([
@@ -181,7 +202,7 @@ async function exportZip(payload) {
     const imgQ = (img.json && img.json.questions) || [];
     check('extract anh: co token [[IMG:n]]', imgQ[0] && /\[\[IMG:\d+\]\]/.test(imgQ[0].question), JSON.stringify(imgQ[0] && imgQ[0].question));
     check('extract anh: imagePool co du lieu', !!(img.json && img.json.imagePool && Object.keys(img.json.imagePool).length));
-    const imgEx = await exportZip({
+    const imgEx = await exportHtml({
         sessionId: img.json.sessionId,
         title: 'Đề có ảnh',
         questions: img.json.questions,
@@ -191,14 +212,14 @@ async function exportZip(payload) {
     check('file xuat khong con token anh', imgEx.html.indexOf('[[IMG:') < 0);
 
     console.log('\n=== 7. Export tu choi du lieu sai / phien het han ===');
-    const noSession = await exportZip({ sessionId: 'khong-ton-tai', questions: mau.json.questions, title: 'x' });
+    const noSession = await exportHtml({ sessionId: 'khong-ton-tai', questions: mau.json.questions, title: 'x' });
     check('session khong ton tai -> 400', noSession.status === 400);
     const badQ = JSON.parse(JSON.stringify(mau.json.questions));
     badQ[1].correct = null;
-    const bad = await exportZip({ sessionId: mau.json.sessionId, title: 'x', questions: badQ });
+    const bad = await exportHtml({ sessionId: mau.json.sessionId, title: 'x', questions: badQ });
     check('cau thieu dap an -> khong xuat (400)', bad.status === 400 && /chưa hợp lệ/i.test((bad.json && bad.json.error) || ''),
         JSON.stringify(bad.json).slice(0, 160));
-    check('file ZIP khong duoc tao khi co cau loi', bad.entries === null);
+    check('file HTML khong duoc tao khi co cau loi', bad.html === '');
 
     console.log('\n=== 8. Gioi han phien RAM ===');
     const importSessions = require(path.join(ROOT, 'lib', 'import-sessions'));
@@ -206,6 +227,19 @@ async function exportZip(payload) {
     for (let i = 0; i < 30; i++) importSessions.create({ pool: {} });
     check('so phien khong vuot tran 20', importSessions.count() <= 20, 'count=' + importSessions.count());
     importSessions.clearAll();
+
+    console.log('\n=== 9. Vector luu bang ky tu to hop U+20D7 ===');
+    const vecDoc = await docxBuffer([
+        new Paragraph('Câu 1: Cho vectơ AB\u20D7 có tọa độ là'),
+        new Paragraph('A. (1; 2) *'),
+        new Paragraph('B. (2; 1)')
+    ]);
+    const vec = await upload('vector.docx', vecDoc);
+    const vecQ = (vec.json && vec.json.questions) || [];
+    check('doi vector sang LaTeX', vecQ[0] && vecQ[0].question.indexOf('\\(\\overrightarrow{AB}\\)') >= 0,
+        JSON.stringify(vecQ[0] && vecQ[0].question));
+    check('khong con ky tu to hop U+20D7', vecQ[0] && vecQ[0].question.indexOf('\u20D7') < 0,
+        JSON.stringify(vecQ[0] && vecQ[0].question));
 
     console.log('\n----------------------------------------');
     console.log('RESULT: ' + passed + ' passed, ' + failed + ' failed');

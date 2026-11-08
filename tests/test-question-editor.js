@@ -31,6 +31,17 @@ assert.strictEqual(score({ type: 'multi', correctList: [0, 2] }, [2, 0]), 1);
 assert.strictEqual(score({ type: 'multi', correctList: [0, 2] }, [0]), 0);
 assert.strictEqual(score({ type: 'truefalse', correctTF: [true, false, true] }, [true, true, true]), 2 / 3);
 assert.strictEqual(score({ type: 'truefalse', correctTF: [true, false] }, [true, false]), 1);
+
+// ---- Thang điểm câu Đúng/Sai 4 ý ----
+var tf4 = [true, false, true, false];
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4 }, [true, false, true, false]), 1);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4 }, [true, false, true, true]), 0.5);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4 }, [true, false, false, true]), 0.25);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4 }, [true, true, false, true]), 0.1);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4 }, [false, true, false, true]), 0);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4, tfScoring: 'equal' }, [true, false, true, true]), 0.75);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4, tfScoring: 'equal' }, [true, false, false, true]), 0.5);
+assert.strictEqual(score({ type: 'truefalse', correctTF: tf4, tfScoring: 'equal' }, [true, true, false, true]), 0.25);
 assert.strictEqual(score({ type: 'shortanswer', correctAnswer: '2.5' }, '2,5'), 1);
 assert.strictEqual(score({ type: 'shortanswer', correctAnswer: '2.5' }, '3'), 0);
 

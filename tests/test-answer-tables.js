@@ -8,7 +8,6 @@
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, VerticalMergeType } = require(path.join(ROOT, 'node_modules', 'docx'));
-const JSZip = require(path.join(ROOT, 'node_modules', 'jszip'));
 const { BASE, ensureServer, stopServer, uploadDocx } = require('./helpers');
 
 let passed = 0, failed = 0;
@@ -337,6 +336,43 @@ async function buildMatrix() {
     return docx(children);
 }
 
+async function buildTheadAnswerTable() {
+    return docx([
+        new Paragraph('PHẦN I. TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN'),
+        ...singleQuestion(1, 'Câu một?', -1),
+        ...singleQuestion(2, 'Câu hai?', -1),
+        new Paragraph('ĐÁP ÁN PHẦN I'),
+        new Table({ rows: [
+            new TableRow({ tableHeader: true, children: [cell('Câu'), cell('Đáp án')] }),
+            new TableRow({ children: [cell('1'), cell('B')] }),
+            new TableRow({ children: [cell('2'), cell('C')] })
+        ] })
+    ]);
+}
+
+async function buildContentTableAndHet() {
+    return docx([
+        new Paragraph('PHẦN I. TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN'),
+        new Paragraph('Câu 1. Cho hàm số có bảng biến thiên:'),
+        new Table({ rows: [
+            new TableRow({ children: [cell('x'), cell('−∞'), cell('1'), cell('+∞')] }),
+            new TableRow({ children: [cell("y'"), cell('+'), cell('0'), cell('−')] })
+        ] }),
+        new Paragraph('A. Phương án A'),
+        new Paragraph('B. Phương án B *'),
+        new Paragraph('C. Phương án C'),
+        new Paragraph('D. Phương án D'),
+        new Paragraph('——— HẾT ———'),
+        new Paragraph('- Thí sinh không được sử dụng tài liệu;'),
+        new Paragraph('MÃ ĐỀ 0101'),
+        new Paragraph('ĐÁP ÁN PHẦN I'),
+        new Table({ rows: [
+            new TableRow({ tableHeader: true, children: [cell('Câu'), cell('Đáp án')] }),
+            new TableRow({ children: [cell('1'), cell('B')] })
+        ] })
+    ]);
+}
+
 async function buildFullFlow() {
     return docx([
         new Paragraph('PHẦN I. TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN'),
@@ -488,7 +524,7 @@ async function buildFullFlow() {
         q10[4] && q10[4].correctAnswer === '24', q10[4] && q10[4].correctAnswer);
     check('không còn câu nào cần kiểm tra', q10.every(function (q) { return q.needsReview === false; }), JSON.stringify(q10.map(function (q) { return q.reviewReasons; })));
 
-    console.log('\n=== 11. Xuất file ZIP từ đề đã ghép bảng đáp án ===');
+    console.log('\n=== 11. Xuất file HTML từ đề đã ghép bảng đáp án ===');
     const exportRes = await fetch(BASE + '/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -499,13 +535,9 @@ async function buildFullFlow() {
             settings: { mode: 'exam', minutes: 30 }
         })
     });
-    const zip = await JSZip.loadAsync(Buffer.from(await exportRes.arrayBuffer()));
-    const htmlName = Object.keys(zip.files).filter(function (n) { return /\.html$/i.test(n); })[0];
-    const exportText = htmlName ? await zip.files[htmlName].async('string') : '';
-    check('xuất file thành công', exportRes.status === 200 && /application\/zip/.test(exportRes.headers.get('content-type') || ''),
+    const exportText = await exportRes.text();
+    check('xuất file thành công', exportRes.status === 200 && /text\/html/.test(exportRes.headers.get('content-type') || ''),
         exportRes.status + ' ' + exportRes.headers.get('content-type'));
-    check('zip có manifest + service worker + icon', ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png']
-        .every(function (n) { return !!zip.files[n]; }), JSON.stringify(Object.keys(zip.files)));
     check('là file HTML đầy đủ', /^<!doctype html>/i.test(exportText) && exportText.indexOf('</html>') > 0);
     check('có đủ 5 câu trong file', exportText.indexOf('"questions"') > 0 && exportText.indexOf('2 + 3') > 0);
 
@@ -544,6 +576,29 @@ async function buildFullFlow() {
     check('mã đề 111: câu 17 = 10', q14[16] && q14[16].correctAnswer === '10', q14[16] && q14[16].correctAnswer);
     check('cảnh báo có nhiều mã đề và đã dùng 111', p14.json && p14.json.answerTables && p14.json.answerTables.warnings.join(' ').indexOf('8 mã đề') >= 0 && p14.json.answerTables.warnings.join(' ').indexOf('111') >= 0, JSON.stringify(p14.json && p14.json.answerTables && p14.json.answerTables.warnings));
     check('không câu nào cần kiểm tra', q14.every(function (q) { return q.needsReview === false; }), JSON.stringify(q14.map(function (q) { return q.reviewReasons; })));
+
+    console.log('\n=== 15. Bảng đáp án do mammoth sinh có <thead>/<tbody> ===');
+    const p15 = await preview(await buildTheadAnswerTable(), 'thead.docx');
+    const q15 = (p15.json && p15.json.questions) || [];
+    check('có 2 câu', q15.length === 2, 'count=' + q15.length);
+    check('đọc được bảng có thead/tbody', tableSummary(p15.json).length === 1, JSON.stringify(tableSummary(p15.json)));
+    check('câu 1 nhận B, câu 2 nhận C', q15[0] && q15[0].correct === 1 && q15[1] && q15[1].correct === 2,
+        JSON.stringify([q15[0] && q15[0].correct, q15[1] && q15[1].correct]));
+    check('không lẫn tiêu đề/cell bảng vào câu hỏi',
+        q15.every(function (q) { return !/ĐÁP ÁN|Đáp án/.test(q.question); }),
+        JSON.stringify(q15.map(function (q) { return q.question; })));
+
+    console.log('\n=== 16. Bảng nội dung (bảng biến thiên) + nội dung sau HẾT ===');
+    const p16 = await preview(await buildContentTableAndHet(), 'bang-noi-dung.docx');
+    const q16 = (p16.json && p16.json.questions) || [];
+    check('có 1 câu', q16.length === 1, 'count=' + q16.length);
+    check('giữ bảng biến thiên dưới dạng HTML', q16[0] && /<table\b/i.test(q16[0].question), JSON.stringify(q16[0] && q16[0].question));
+    check('giữ nội dung ô bảng', q16[0] && q16[0].question.indexOf('+∞') >= 0 && q16[0].question.indexOf("y'") >= 0,
+        JSON.stringify(q16[0] && q16[0].question));
+    check('không lẫn hướng dẫn/mã đề/đáp án sau HẾT vào câu hỏi',
+        q16[0] && !/Thí sinh|MÃ ĐỀ|ĐÁP ÁN/.test(q16[0].question),
+        JSON.stringify(q16[0] && q16[0].question));
+    check('bảng đáp án sau HẾT vẫn được ghép', q16[0] && q16[0].correct === 1, q16[0] && q16[0].correct);
 
     console.log('\n----------------------------------------');
     console.log('Kết quả: ' + passed + ' PASS, ' + failed + ' FAIL');
