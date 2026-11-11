@@ -5,8 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/test-import-docx.js && node tests/test-import-sections.js && node tests/test-import-shortanswer.js && node tests/test-answer-tables.js && node tests/test-question-editor.js && node tests/test-shortanswer.js && node tests/test-offline-quiz.js",
+    "test": "node tests/test-import-docx.js && node tests/test-import-sections.js && node tests/test-import-shortanswer.js && node tests/test-answer-tables.js && node tests/test-question-editor.js && node tests/test-shortanswer.js && node tests/test-offline-quiz.js && node tests/test-import-pdf.js",
     "test:import": "node tests/test-import-docx.js",
+    "test:import-pdf": "node tests/test-import-pdf.js",
     "test:answer-tables": "node tests/test-answer-tables.js",
     "test:import-sections": "node tests/test-import-sections.js",
     "test:import-shortanswer": "node tests/test-import-shortanswer.js",
@@ -20,6 +21,7 @@
     "katex": "0.16.22",
     "mammoth": "^1.11.0",
     "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
     "xml-js": "^1.6.11",
     "xmldom": "0.6.0"
   },

@@ -2,10 +2,10 @@
 /**
  * server.js
  * ---------------------------------------------------------------------------
- * Cong cu noi bo toi gian: .docx -> trich xuat cau hoi -> tai file HTML tu chay.
+ * Cong cu noi bo toi gian: .docx/.pdf -> trich xuat cau hoi -> tai file HTML tu chay.
  *
  *   GET  /               giao dien (public/index.html)
- *   POST /api/extract    multipart/form-data, field "file" (.docx, <= 15 MB)
+ *   POST /api/extract    multipart/form-data, field "file" (.docx/.pdf, <= 15 MB)
  *   POST /api/export     JSON { sessionId, title, questions, settings } -> file .html
  *   GET  /api/health     { ok: true }
  */
@@ -17,6 +17,7 @@ var multer = require('multer');
 var fileValidate = require('./lib/file-validate');
 var importSessions = require('./lib/import-sessions');
 var docxImport = require('./lib/docx-import');
+var pdfImport = require('./lib/pdf-import');
 var questionParser = require('./lib/question-parser');
 var questionNormalize = require('./lib/question-normalize');
 var offlineQuiz = require('./lib/offline-quiz');
@@ -24,16 +25,17 @@ var offlineQuiz = require('./lib/offline-quiz');
 var PORT = parseInt(process.env.PORT, 10) || 3456;
 var app = express();
 
-// File Word chi giu trong RAM; khiem tra lai day du o /api/extract.
-var docxUpload = multer({
+// File Word/PDF chi giu trong RAM; kiem tra lai day du o /api/extract.
+var documentUpload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: fileValidate.FILE_LIMITS.maxDocxBytes,
+        fileSize: fileValidate.FILE_LIMITS.maxDocumentBytes,
         files: 1
     },
     fileFilter: function (req, file, cb) {
-        if (fileValidate.detectKind(file.originalname, file.mimetype) !== 'docx') {
-            var err = new Error('Chỉ nhận file Word (.docx).');
+        var kind = fileValidate.detectKind(file.originalname, file.mimetype);
+        if (kind !== 'docx' && kind !== 'pdf') {
+            var err = new Error('Chỉ nhận file Word (.docx) hoặc PDF (.pdf).');
             err.code = 'UNSUPPORTED_TYPE';
             return cb(err);
         }
@@ -51,29 +53,43 @@ app.get('/api/health', function (req, res) {
     res.json({ ok: true });
 });
 
-// Buoc 1+2: nhan file Word, phan tich va tra ve ban xem truoc.
-app.post('/api/extract', docxUpload.single('file'), function (req, res) {
+// Buoc 1+2: nhan file Word/PDF, phan tich va tra ve ban xem truoc.
+app.post('/api/extract', documentUpload.single('file'), function (req, res) {
     var file = req.file;
     if (!file) {
-        return res.status(400).json({ success: false, error: 'Chưa chọn file Word nào.' });
+        return res.status(400).json({ success: false, error: 'Chưa chọn file Word hoặc PDF nào.' });
     }
 
     var check = fileValidate.validateUpload(file);
     if (!check.ok) {
         return res.status(400).json({ success: false, error: check.error });
     }
-    if (check.kind !== 'docx') {
-        return res.status(400).json({ success: false, error: 'Chỉ nhận file Word (.docx).' });
+    if (check.kind !== 'docx' && check.kind !== 'pdf') {
+        return res.status(400).json({ success: false, error: 'Chỉ nhận file Word (.docx) hoặc PDF (.pdf).' });
     }
 
-    docxImport.mammothToHtml(file.buffer).then(function (result) {
+    var readDocument = check.kind === 'pdf'
+        ? pdfImport.pdfToHtml(file.buffer)
+        : docxImport.mammothToHtml(file.buffer);
+
+    readDocument.then(function (result) {
         var parseOpts = { trackReview: true };
         var questions = questionParser.parseQuestionsFromHtml(result.value, parseOpts);
         var answerTableReport = parseOpts.answerTableReport || null;
         var completeness = questionParser.analyzeImportCompleteness(questions);
+        var warnings = (result.warnings || []).concat(completeness.warnings);
 
-        if (completeness.warnings.length > 1) {
-            console.warn('[IMPORT] ' + file.originalname + ': ' + completeness.warnings.join(' '));
+        if (warnings.length > 1) {
+            console.warn('[IMPORT] ' + file.originalname + ': ' + warnings.join(' '));
+        }
+
+        // PDF chi co chu: neu khong nhan ra cau hoi nao thi bao ro thay vi tra ve 0 cau.
+        if (check.kind === 'pdf' && questions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Không nhận ra câu hỏi nào trong PDF. Kiểm tra lại PDF có lớp chữ (không phải ảnh scan) ' +
+                    'và câu hỏi bắt đầu bằng "Câu 1.", phương án "A.", "B.", ...'
+            });
         }
 
         // Anh nhung duoc tach thanh token [[IMG:n]]; du lieu anh giu trong phien RAM.
@@ -87,11 +103,13 @@ app.post('/api/extract', docxUpload.single('file'), function (req, res) {
             count: questions.length,
             needsReview: needsReview,
             warnings: completeness.warnings,
+            sourceWarnings: result.warnings || [],
             answerTables: answerTableReport,
             completeness: completeness,
             imagePool: pool,
             source: {
-                docx: file.originalname,
+                name: file.originalname,
+                kind: check.kind,
                 images: []
             },
             questions: questions.map(function (q, idx) {

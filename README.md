@@ -1,6 +1,6 @@
-# Word → HTML Quiz
+# Word/PDF → HTML Quiz
 
-Công cụ nội bộ tối giản: tải file Word (`.docx`) lên, xem lại câu hỏi, tải xuống **một file HTML** tự chạy.
+Công cụ nội bộ tối giản: tải file Word (`.docx`) hoặc PDF (`.pdf`) lên, xem lại câu hỏi, tải xuống **một file HTML** tự chạy.
 
 File xuất ra là `<slug>.html` duy nhất — mọi CSS, JavaScript, công thức và ảnh đã nhúng sẵn bên trong; không cần thêm file phụ.
 
@@ -17,7 +17,7 @@ Mở http://localhost:3456 (đổi cổng bằng biến môi trường `PORT`).
 
 ## Ba bước sử dụng
 
-1. **Tải file Word** — kéo thả hoặc chọn một file `.docx` (tối đa **15 MB**); hệ thống tự trích xuất ngay.
+1. **Tải file Word hoặc PDF** — kéo thả hoặc chọn một file `.docx` / `.pdf` (tối đa **15 MB**); hệ thống tự trích xuất ngay.
 2. **Xem lại câu hỏi** — lọc theo *Tất cả / Có đáp án / Cần kiểm tra*, kiểm tra câu hỏi, đáp án, điểm; sửa trực tiếp nếu cần. Câu chưa xác định được đáp án sẽ được đánh dấu để giáo viên tự kiểm tra.
 3. **Tải file HTML** — đặt tiêu đề, chọn chế độ làm bài rồi tải xuống. File HTML mở được trên máy không có mạng: mọi CSS, JavaScript, công thức và ảnh đã nhúng sẵn.
 
@@ -32,6 +32,12 @@ Mở http://localhost:3456 (đổi cổng bằng biến môi trường `PORT`).
 - Bảng đáp án đặt ở cuối đề (`ĐÁP ÁN PHẦN I`, ...) theo hàng ngang, hàng dọc, cặp cột `Câu | Đáp án | Câu | Đáp án`, cột phụ `Câu 2`, ô câu gộp dọc và bảng ma trận `Câu hỏi | Mã đề thi`. Bảng ma trận nhiều mã đề chỉ đọc mã đầu tiên và cảnh báo để giáo viên kiểm tra.
 - Công thức toán (OMML) được chuyển thành LaTeX; ảnh nhúng trong file Word được giữ lại.
 - Nếu thiếu hoặc mâu thuẫn đáp án, hệ thống **không tự đoán**: câu đó được đánh dấu "cần kiểm tra" và chặn xuất file cho tới khi giáo viên sửa.
+
+## Định dạng PDF được hỗ trợ
+
+- PDF phải có **lớp chữ** (xuất từ Word/Google Docs hoặc tải từ nguồn số). PDF là ảnh scan không đọc được và báo lỗi rõ ràng.
+- PDF chỉ giữ phần chữ: **mất gạch chân, công thức toán và hình ảnh**. Đáp án phải được đánh dấu bằng `*` hoặc `(đúng)` trên dòng phương án; câu không thấy dấu đáp án sẽ bị đánh dấu "cần kiểm tra".
+- Dòng văn bản bị ngắt giữa một phương án có thể bị đánh dấu "cần kiểm tra" — giáo viên sửa lại ở bước xem trước.
 
 ## Kiểm thử
 

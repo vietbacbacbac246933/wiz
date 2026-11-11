@@ -79,14 +79,14 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 </head>
 <body>
 <div id="app">
-  <h1>Chuyển đề Word thành file HTML</h1>
-  <p class="muted">Nạp file <b>.docx</b>, kiểm tra câu hỏi, rồi tải về một file HTML tự chạy (không cần mạng).</p>
+  <h1>Chuyển đề Word/PDF thành file HTML</h1>
+  <p class="muted">Nạp file <b>.docx</b> hoặc <b>.pdf</b>, kiểm tra câu hỏi, rồi tải về một file HTML tự chạy (không cần mạng).</p>
 
   <section class="card">
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn hoặc kéo thả file Word">
-      <strong>Kéo thả file .docx vào đây</strong>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn hoặc kéo thả file Word hoặc PDF">
+      <strong>Kéo thả file .docx hoặc .pdf vào đây</strong>
       <span class="muted">hoặc bấm để chọn file (tối đa 15 MB)</span>
-      <input type="file" id="file" accept=".docx" hidden>
+      <input type="file" id="file" accept=".docx,.pdf,application/pdf" hidden>
     </div>
     <div class="actions">
       <button id="extract" disabled>Trích xuất lại</button>
@@ -472,8 +472,8 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
 
   function readFile(file) {
     if (!file) return;
-    if (!/\.docx$/i.test(file.name)) {
-      setStatus('Chỉ nhận file Word (.docx).', 'err');
+    if (!/\.(docx|pdf)$/i.test(file.name)) {
+      setStatus('Chỉ nhận file Word (.docx) hoặc PDF (.pdf).', 'err');
       return;
     }
     state.file = file;
@@ -530,11 +530,12 @@ button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
         $('count').textContent = state.questions.length;
         $('reviewCount').textContent = json.needsReview + ' cần kiểm tra';
         $('reviewCount').className = 'chip ' + (json.needsReview ? 'warn' : 'ok');
-        $('sourceName').textContent = json.source && json.source.docx ? json.source.docx : '';
+        $('sourceName').textContent = json.source && json.source.name ? json.source.name : '';
         var tableWarnings = (json.answerTables && json.answerTables.warnings) || [];
+        var allWarnings = (json.sourceWarnings || []).concat(tableWarnings);
         var warnEl = $('importWarnings');
-        warnEl.textContent = tableWarnings.join(' ');
-        warnEl.className = 'status info' + (tableWarnings.length ? ' show' : '');
+        warnEl.textContent = allWarnings.join(' ');
+        warnEl.className = 'status info' + (allWarnings.length ? ' show' : '');
         renderSections();
         renderList();
         setStatus('Trích xuất xong ' + json.count + ' câu. Kiểm tra và sửa nếu cần.', 'ok');
